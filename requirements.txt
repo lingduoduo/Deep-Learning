@@ -27,7 +27,7 @@
 ##### Core scientific packages
 jupyter==1.0.0
 matplotlib==3.0.3
-numpy==1.16.2
+numpy==1.21.0
 pandas==0.24.1
 scipy==1.1.0
 
@@ -74,7 +74,7 @@ tensorflow-serving-api
 
 ##### Image manipulation
 imageio==2.5.0
-Pillow==8.3.2
+Pillow==9.0.0
 scikit-image==0.14.2
 
 
@@ -96,7 +96,7 @@ joblib==0.13.2
 numexpr==2.6.9
 
 # Optional: these libraries can be useful in chapter 3, exercise 4.
-nltk==3.4.5
+nltk==3.6.6
 urlextract==0.9
 
 # Needed in chapter 19.

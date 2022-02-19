@@ -1,3 +1,139 @@
+## WSDM 2022
+
+**跨域推荐**
+
+RecGURU: Adversarial Learning of Generalized User Representations for Cross-Domain Recommendation
+
+https://arxiv.org/pdf/2111.10093.pdf
+
+Personalized Transfer of User Preferences for Cross-domain Recommendation
+
+https://arxiv.org/pdf/2110.11154.pdf
+
+Multi-Sparse-Domain Collaborative Recommendation via Enhanced Comprehensive Aspect Preference Learning
+
+**序列推荐**
+
+Contrastive Learning for Representation Degeneration Problem in Sequential Recommendation
+
+https://arxiv.org/pdf/2110.05730.pdf
+
+S-Walk: Accurate and Scalable Session-based Recommendation with Random Walks
+
+Heterogeneous Global Graph Neural Networks for Personalized Session-based Recommendation
+
+https://arxiv.org/pdf/2107.03813.pdf
+
+Learning Multi-granularity Consecutive User Intent Unit for Session-based Recommendation
+
+**点击率预估**
+
+CAN: Feature Co-Action Network for Click-Through Rate Prediction
+
+Triangle Graph Interest Network for Click-through Rate Prediction
+
+Modeling Users’ Contextualized Page-wise Feedback for Click-Through Rate Prediction in E-commerce Search
+
+**去偏推荐**
+
+It Is Different When Items Are Older: Debiasing Recommendations When Selection Bias and User Preferences are Dynamic
+
+https://arxiv.org/pdf/2111.12481.pdf
+
+Fighting Mainstream Bias in Recommender Systems via Local Fine Tuning
+
+http://people.tamu.edu/~zhuziwei/pubs/Ziwei_WSDM_2022.pdf
+
+Towards Unbiased and Robust Causal Ranking for Recommender Systems
+
+**路径推荐**
+
+PLdFe-RR:Personalized Long-distance Fuel-efficient Route Recommendation Based On Historical Trajectory
+
+**联邦推荐**
+
+PipAttack: Poisoning Federated Recommender Systems for Manipulating Item Promotion
+
+https://arxiv.org/pdf/2110.10926.pdf
+
+**基于图结构的推荐**
+
+Joint Learning of E-commerce Search and Recommendation with A Unified Graph Neural Network
+
+Profiling the Design Space for Graph Neural Networks based Collaborative Filtering
+
+http://www.shichuan.org/doc/125.pdf
+
+Graph Logic Reasoning for Recommendation and Link Prediction
+
+Modeling Scale-free Graphs with Hyperbolic Geometry for Knowledge-aware Recommendation
+
+https://arxiv.org/pdf/2108.06468.pdf
+
+**公平性推荐**
+
+Toward Pareto Efficient Fairness-Utility Trade-off in Recommendation through Reinforcement Learning
+
+Enumerating Fair Packages for Group Recommendations
+
+https://arxiv.org/pdf/2105.14423.pdf
+
+**基于对比学习的推荐**
+
+Contrastive Meta Learning with Behavior Multiplicity for Recommendation
+
+C2-CRS: Coarse-to-Fine Contrastive Learning for Conversational Recommender System
+
+**基于元学习的推荐**
+
+Long Short-Term Temporal Meta-learning in Online Recommendation
+
+https://arxiv.org/pdf/2105.03686.pdf
+
+**基于对抗学习的推荐**
+
+A Peep into the Future: Adversarial Future Encoding in Recommendation
+
+**基于强化学习的推荐**
+
+Reinforcement Learning over Sentiment-Augmented Knowledge Graphs towards Accurate and Explainable Recommendation
+
+A Cooperative-Competitive Multi-Agent Framework for Auto-bidding in Online Advertising
+
+https://arxiv.org/pdf/2106.06224.pdf
+
+Choosing the Best of All Worlds: Accurate, Diverse, and Novel Recommendations through Multi-Objective Reinforcement Learning
+
+https://arxiv.org/pdf/2110.15097.pdf
+
+**关于数据集**
+
+On Sampling Collaborative Filtering Datasets
+
+The Datasets Dilemma: How Much Do We Really Know About Recommendation Datasets?
+
+其他
+
+VAE++: Variational AutoEncoder for Heterogeneous One-Class Collaborative Filtering
+
+Sequential Modeling with Multiple Attributes for Watchlist Recommendation in E-Commerce
+
+https://arxiv.org/pdf/2110.11072.pdf
+
+Show Me the Whole World: Towards Entire Item Space Exploration for Interactive Personalized Recommendations
+
+https://arxiv.org/pdf/2110.09905.pdf
+
+Supervised Advantage Actor-Critic for Recommender Systems
+
+https://arxiv.org/pdf/2111.03474.pdf
+
+**官网接收论文列表地址：**
+
+https://www.wsdm-conference.org/2022/accepted-papers/
+
+
+
 ## KDD 2021
 1. Categorize by usage
 
