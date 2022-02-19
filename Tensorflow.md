@@ -25,3 +25,38 @@ Density-based clusters are another type of clusters, which is defined as followi
 
 In order to solve different clustering problems, there are various clustering algorithms such as K-Means clustering, hierarchical clustering, t-SNE clustering, and DBSCAN or DB Scan clustering. 
 
+
+TFX: Real World Machine Learning in Production
+
+What are pipelines and componentts?
+A TFX component has three main parts: a driver, an executor, and a publisher.
+A driver, coordinating job execution, which inspects the state of world and decides what work nees to be done, coordinating job executiona dn feeding metadata to the executor.
+A executor, performing the work, which inserts your code and do your customization.
+A publisher, updating ML metadata, which takes the results of your executor and updates the metadata store.
+
+Orchestrating a TFX pipeline
+TFX implements a task- and data-aware pipeline architecture.
+
+Why should you store metadata
+Store information/artifacts which the models were trained.
+Keep execution records ML pipeline run frequently.
+Include lineage or provenance of the data objects as they flow through the pipeline.
+
+Metadata-powered functionality
+Remember that it’s not just for today’s model or today’s results. You’re likely also interested in understanding how your data and results change over time as you take in new data and retrain your model. You often want to compare to model runs that you ran yesterday, or last week, to understand why your results got better or worse. Production solutions aren’t one-time things, they live for as long as you need them, and that can be months or years.
+
+Read in data
+ExampleGen
+StatisticsGen
+SchemaGen
+ExampleValidator
+
+Feature Engineering
+Transform will then output a TensorFlow graph with those constants and ops. 
+That graph is hermetic, so it contains all of the information you need to apply those transformations, and will form the input stage for your model. 
+
+Training Models -
+Trainer - transform graphs and data
+SchemaGen - schema
+Evaluator - savedModel
+ModelValidator - pusher
