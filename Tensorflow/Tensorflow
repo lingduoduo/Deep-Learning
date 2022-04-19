@@ -60,3 +60,20 @@ Trainer - transform graphs and data
 SchemaGen - schema
 Evaluator - savedModel
 ModelValidator - pusher
+
+**Tensors**
+- Tensors is n-dimensional array, container for holding data, a mathematical representation for the magnigudes of a colleciton of features.
+- Tensors use rank, shape, and dtype to describe the data they hold.
+	- Rank of a tensor is the number of indices required to uniquesly select each element of the tensor
+	- Rank 0 Tensor: Scalar
+	- Rank 1 Tensor: Vector (numpy narray)
+	- Rank 2 Tensor: Matrix
+	- Rank 3 Tensor: Tensor
+- Flow is movement and change, Directed Acyclic Graph
+	- Directed: you can traverse the graph in a predefinced sequence of steps.
+	- Acyclic: no looping, data doesn't go through the same node more than once.
+	- Graph: nodes and edges will represent operations and data, respectively
+	- DAGs are a data structure
+	- Massively parallelize operations
+	- Distribute to multiple execution environments
+	- Transfer trained models
