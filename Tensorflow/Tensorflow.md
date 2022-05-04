@@ -74,9 +74,74 @@ class MyModel(tf.keras.Model):
     return self.dense2(x)
 model = MyModel()
 ```
+
+**Deep Neural Network (DNN)**
+- A Tensorflow NN is a graph of layers containing artificial neurons.
+  - Input: Accepts raw data as tensors
+  - Hidden: Intermediate transforamtions
+  - Output: Tensor prediction
+- Deep: 2+ vs Shallow: 1 layers
+- Dense layers provide the core learning functionality
+  - Computation limits: large numbers of neurons with lots of inputs take a long time to train
+  - Overfitting: want to generalize, not memorize
+  - Overengineering: simpler models will work nearly as well
+```python
+# tf.keras.layers.Dense(
+#     units,
+#     activation=None,
+#     use_bias=True,
+#     kernel_initializer='glorot_uniform',
+#     bias_initializer='zeros',
+#     kernel_regularizer=None,
+#     bias_regularizer=None,
+#     activity_regularizer=None,
+#     kernel_constraint=None,
+#     bias_constraint=None,
+#     **kwargs
+# )
+
+# Create a `Sequential` model and add a Dense layer as the first layer.
+model = tf.keras.models.Sequential()
+model.add(tf.keras.Input(shape=(16,)))
+model.add(tf.keras.layers.Dense(32, activation='relu'))
+# Now the model will take as input arrays of shape (None, 16)
+# and output arrays of shape (None, 32).
+# Note that after the first layer, you don't need to specify
+# the size of the input anymore:
+model.add(tf.keras.layers.Dense(32))
+model.output_shape
+```
+
+**Convolutions**
+- Convolution kernels have properties similar to tensors
+  - shape: total areas to consider at once
+  - stride: how far to move the kernal to see the next piece of data
+```python
+# tf.keras.layers.Conv1D(
+#     filters,
+#     kernel_size,
+#     strides=1,
+#     padding='valid',
+#     data_format='channels_last',
+#     dilation_rate=1,
+#     groups=1,
+#     activation=None,
+#     use_bias=True,
+#     kernel_initializer='glorot_uniform',
+#     bias_initializer='zeros',
+#     kernel_regularizer=None,
+#     bias_regularizer=None,
+#     activity_regularizer=None,
+#     kernel_constraint=None,
+#     bias_constraint=None,
+#     **kwargs
+# )
+# The inputs are 128-length vectors with 10 timesteps, and the batch size
+# is 4.
+input_shape = (4, 10, 128)
+x = tf.random.normal(input_shape)
+y = tf.keras.layers.Conv1D(
+32, 3, activation='relu',input_shape=input_shape[1:])(x)
+print(y.shape)
+```
 - 
-
-
-
-
-
