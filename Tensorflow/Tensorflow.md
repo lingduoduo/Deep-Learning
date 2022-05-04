@@ -116,6 +116,7 @@ model.output_shape
 - Convolution kernels have properties similar to tensors
   - shape: total areas to consider at once
   - stride: how far to move the kernal to see the next piece of data
+- Convolutions Produce a New Representation per Dimension per Kernel
 ```python
 # tf.keras.layers.Conv1D(
 #     filters,
@@ -142,6 +143,34 @@ input_shape = (4, 10, 128)
 x = tf.random.normal(input_shape)
 y = tf.keras.layers.Conv1D(
 32, 3, activation='relu',input_shape=input_shape[1:])(x)
+print(y.shape)
+
+# tf.keras.layers.Conv2D(
+#     filters,
+#     kernel_size,
+#     strides=(1, 1),
+#     padding='valid',
+#     data_format=None,
+#     dilation_rate=(1, 1),
+#     groups=1,
+#     activation=None,
+#     use_bias=True,
+#     kernel_initializer='glorot_uniform',
+#     bias_initializer='zeros',
+#     kernel_regularizer=None,
+#     bias_regularizer=None,
+#     activity_regularizer=None,
+#     kernel_constraint=None,
+#     bias_constraint=None,
+#     **kwargs
+# )
+
+# The inputs are 28x28 RGB images with `channels_last` and the batch
+# size is 4.
+input_shape = (4, 28, 28, 3)
+x = tf.random.normal(input_shape)
+y = tf.keras.layers.Conv2D(
+2, 3, activation='relu', input_shape=input_shape[1:])(x)
 print(y.shape)
 ```
 - 
