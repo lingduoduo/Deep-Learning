@@ -173,4 +173,89 @@ y = tf.keras.layers.Conv2D(
 2, 3, activation='relu', input_shape=input_shape[1:])(x)
 print(y.shape)
 ```
-- 
+**Pooling**
+Max pooling selects the highest magnitude. Average pooling selects the mean magnitude.
+```python
+# tf.keras.layers.MaxPool1D(
+#     pool_size=2,
+#     strides=None,
+#     padding='valid',
+#     data_format='channels_last',
+#     **kwargs
+# )
+x = tf.constant([1., 2., 3., 4., 5.])
+x = tf.reshape(x, [1, 5, 1])
+max_pool_1d = tf.keras.layers.MaxPooling1D(pool_size=2,
+   strides=1, padding='valid')
+max_pool_1d(x)
+
+# tf.keras.layers.AveragePooling1D(
+#     pool_size=2,
+#     strides=None,
+#     padding='valid',
+#     data_format='channels_last',
+#     **kwargs
+# )
+x = tf.constant([1., 2., 3., 4., 5.])
+x = tf.reshape(x, [1, 5, 1])
+avg_pool_1d = tf.keras.layers.AveragePooling1D(pool_size=2,
+   strides=1, padding='valid')
+avg_pool_1d(x)
+```
+
+**Convolutional Neural Network(CNN)**
+- Flatten layer
+- Patterns can appear anywhere in the data
+- Convoluations are a weak form of memory about space
+```python
+# tf.keras.layers.Flatten(
+#     data_format=None, **kwargs
+# )
+model = tf.keras.Sequential()
+model.add(tf.keras.layers.Conv2D(64, 3, 3, input_shape=(3, 32, 32)))
+model.add(Flatten())
+model.output_shape
+```
+
+**Recurrent Neural Network**
+- Simple RNN memory is fuzzy, so not much better than convolutions
+- Memory resets between sequences, each sequence is independent
+- LSTM
+  - Hold steady, what working memory that stores values unchanged 
+  - Learn what's important, is the data being held worthwhile 
+  - Forget what's not, out with the old, in with the new 
+  
+  - Forget gate: choose to forget or remember current long-term information
+  - Input gate: choose to add new data from current input to long-term memory
+  - Output gate: choose to apply long-term memory items to short term memory to affect output
+
+  - Long term memory doesn't degrade
+  - Memory works across very long sequences
+  - More computationally expensive
+- GRU
+  - Reset gate: choose how much memory applies to current input
+  - Update gate: choose how much memory to keep and how much current input to add
+  - Memory is less robust
+  - Simpler architecture provides faster training times
+  - Research show GRUs offer competitive performance on some tasks, but not all
+- Bidirectional RNN
+
+**Loss Function**
+- Backpropagation
+- Loss function to determine how much the model differs from the ideal
+- Supervised 
+  - Regression to predict continuous data
+    - Mean Absolute Error, MAE, Average of absolute difference of prediction and label, proportional cost
+    - Mean Squared Error, MSE, Average of squared difference of prediction and label, exponential cost
+      - Root Mean Squared Error, RMSE, Square root of MSE
+    - Mean Absolute Percentage Error, MAPE, Average of the absolute difference of the prediction and label divided by the label, scale-agnostic cost
+  - Classification to predict discrete data
+    - Cross entropy
+      - Binary cross entropy
+      - Integer encoded multiclass, Sparse categorical entropy
+      - Categorical one-hot encoded multiclass, categorical entropy
+- Unsupervised
+- Reinforcement
+
+**Optimizer**
+- Once we know the loss, how can we change the model to be better
