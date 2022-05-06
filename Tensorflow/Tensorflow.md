@@ -15,6 +15,7 @@ You can think of a TensorFlow Tensor as an n dimensional array or at least.
 - A Tensor has a rank a shape and a static type. 
 So, a Tensor can be represented as a multi-dimensional array of numbers.
 
+
 **Tensors**
 - Tensors is n-dimensional array, container for holding data, a mathematical representation for the magnigudes of a colleciton of features.
 - Tensors use rank, shape, and dtype to describe the data they hold.
@@ -23,6 +24,8 @@ So, a Tensor can be represented as a multi-dimensional array of numbers.
     - Rank 1 Tensor: Vector (numpy narray)
     - Rank 2 Tensor: Matrix
     - Rank 3 Tensor: Tensor
+
+
 **Flow**
 - Flow is movement and change, Directed Acyclic Graph
     - Directed: you can traverse the graph in a predefinced sequence of steps.
@@ -32,6 +35,8 @@ So, a Tensor can be represented as a multi-dimensional array of numbers.
     - Massively parallelize operations
     - Distribute to multiple execution environments
     - Transfer trained models
+
+
 **Keras**
 - What are the three main advantages of computational graphs?
   - Massively parallelize optations
@@ -75,7 +80,9 @@ class MyModel(tf.keras.Model):
 model = MyModel()
 ```
 
+
 **Deep Neural Network (DNN)**
+- Primary learning functionality. Dense neurons learn linear functions to transform data into the desired output.
 - A Tensorflow NN is a graph of layers containing artificial neurons.
   - Input: Accepts raw data as tensors
   - Hidden: Intermediate transforamtions
@@ -112,7 +119,9 @@ model.add(tf.keras.layers.Dense(32))
 model.output_shape
 ```
 
+
 **Convolutions**
+- Learn spatial relationship features to improve the models.
 - Convolution kernels have properties similar to tensors
   - shape: total areas to consider at once
   - stride: how far to move the kernal to see the next piece of data
@@ -173,8 +182,11 @@ y = tf.keras.layers.Conv2D(
 2, 3, activation='relu', input_shape=input_shape[1:])(x)
 print(y.shape)
 ```
+
+
 **Pooling**
-Max pooling selects the highest magnitude. Average pooling selects the mean magnitude.
+- Transform data into more compact representations to reduece overall parameters.
+- Max pooling selects the highest magnitude. Average pooling selects the mean magnitude.
 ```python
 # tf.keras.layers.MaxPool1D(
 #     pool_size=2,
@@ -203,10 +215,11 @@ avg_pool_1d = tf.keras.layers.AveragePooling1D(pool_size=2,
 avg_pool_1d(x)
 ```
 
+
 **Convolutional Neural Network(CNN)**
 - Flatten layer
 - Patterns can appear anywhere in the data
-- Convoluations are a weak form of memory about space
+- Convolutions are a weak form of memory about space
 ```python
 # tf.keras.layers.Flatten(
 #     data_format=None, **kwargs
@@ -217,10 +230,13 @@ model.add(Flatten())
 model.output_shape
 ```
 
+
 **Recurrent Neural Network**
 - Simple RNN memory is fuzzy, so not much better than convolutions
 - Memory resets between sequences, each sequence is independent
 - LSTM
+  - provides an extra memeory channel for learning data across time. Enables processing of very long sequences.
+
   - Hold steady, what working memory that stores values unchanged 
   - Learn what's important, is the data being held worthwhile 
   - Forget what's not, out with the old, in with the new 
@@ -233,6 +249,7 @@ model.output_shape
   - Memory works across very long sequences
   - More computationally expensive
 - GRU
+  - Simplified memory channel across time. Not as powerful as LSTM, but less computationally expensive
   - Reset gate: choose how much memory applies to current input
   - Update gate: choose how much memory to keep and how much current input to add
   - Memory is less robust
@@ -240,7 +257,9 @@ model.output_shape
   - Research show GRUs offer competitive performance on some tasks, but not all
 - Bidirectional RNN
 
+
 **Loss Function**
+- Based on the type of problem, supervised, unsupervised, reinforcement, pick a function to generate a number that describes how wrong the model is
 - Backpropagation
 - Loss function to determine how much the model differs from the ideal
 - Supervised 
@@ -254,8 +273,28 @@ model.output_shape
       - Binary cross entropy
       - Integer encoded multiclass, Sparse categorical entropy
       - Categorical one-hot encoded multiclass, categorical entropy
-- Unsupervised
-- Reinforcement
+
 
 **Optimizer**
+- Family of backpropagation algorithms that will adjust the mdoel based on the loss
 - Once we know the loss, how can we change the model to be better
+  - Changes variables throughout the model based on loss
+  - Backpropagation
+  - Optimizer: specific backprop algorithm
+- Backprop is navigation
+  - Move a direction
+  - Recheck elevation
+  - Correct course
+  - Repeat
+- Specific Backpropagation Algorithms
+  - Stochastic Gradient Descent: data in batches, many measurements, but dramatically faster correction, so faster overall
+  - RMSProp: SGD with adaptive learning rates across the model
+  - Adam: RMSProp with momentum
+
+
+**Activation Function**
+- Activatio functions reshape layer output to introduce the nonlinearity needed by backpropagation
+- Sigmoid: Sigmoid constrains output between 0 and 1
+- Hyperbolic tangent: Tanh constrains output between -1 and 1
+- Rectified Linearu Unit: ReLu contrains output to positive values
+
