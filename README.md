@@ -715,3 +715,194 @@ http://web.stanford.edu/class/cs224n/lecture_notes/cs224n-2017-review-differenti
 计算方法概论(readthedocs.io)
 
 http://ml-cheatsheet.readthedocs.io/en/latest/calculus.html
+
+1、机器学习就是这么好玩！(medium.com/@ageitgey)
+
+机器学习速成课程（Berkeley的ML）
+
+Part I：https://ml.berkeley.edu/blog/2016/11/06/tutorial-1/
+
+Part II：https://ml.berkeley.edu/blog/2016/12/24/tutorial-2/
+
+Part III：https://ml.berkeley.edu/blog/2017/02/04/tutorial-3/
+
+机器学习入门与应用：实例图解(toptal.com)
+
+https://www.toptal.com/machine-learning/machine-learning-theory-an-introductory-primer
+
+机器学习的简易指南 (monkeylearn.com)
+
+https://monkeylearn.com/blog/a-gentle-guide-to-machine-learning/
+
+如何选择机器学习算法？(sas.com)
+
+https://blogs.sas.com/content/subconsciousmusings/2017/04/12/machine-learning-algorithm-use/
+
+2、Activation and Loss Functions 激活函数与损失函数
+
+sigmoid 神经元 (neuralnetworksanddeeplearning.com)
+
+http://neuralnetworksanddeeplearning.com/chap1.html#sigmoid_neurons
+
+激活函数在神经网络中有什么作用？(quora.com)
+
+https://www.quora.com/What-is-the-role-of-the-activation-function-in-a-neural-network
+
+神经网络的激活函数大全及其优劣 (stats.stackexchange.com)
+
+https://stats.stackexchange.com/questions/115258/comprehensive-list-of-activation-functions-in-neural-networks-with-pros-cons
+
+激活函数及其分类比较(medium.com)
+
+https://medium.com/towards-data-science/activation-functions-and-its-types-which-is-better-a9a5310cc8f
+
+理解对数损失 (exegetic.biz)
+
+http://www.exegetic.biz/blog/2015/12/making-sense-logarithmic-loss/
+
+损失函数(Stanford CS231n)
+
+http://cs231n.github.io/neural-networks-2/#losses
+
+损失函数L1 与L2 比较(rishy.github.io)
+
+http://rishy.github.io/ml/2015/07/28/l1-vs-l2-loss/
+
+交叉熵损失函数(neuralnetworksanddeeplearning.com)
+
+http://neuralnetworksanddeeplearning.com/chap3.html#the_cross-entropy_cost_function
+
+3、偏差（Bias）
+
+神经网络中的偏差的作用(stackoverflow.com)
+
+https://stackoverflow.com/questions/2480650/role-of-bias-in-neural-networks/2499936#2499936
+
+神经网络中的偏差节点(makeyourownneuralnetwork.blogspot.com)
+
+http://makeyourownneuralnetwork.blogspot.com/2016/06/bias-nodes-in-neural-networks.html
+
+什么是人工神经网络中的偏差 (quora.com)
+
+https://www.quora.com/What-is-bias-in-artificial-neural-network
+
+4、感知器（Perceptron）
+
+感知器模型(neuralnetworksanddeeplearning.com)
+
+http://neuralnetworksanddeeplearning.com/chap1.html#perceptrons
+
+感知器(natureofcode.com)
+
+http://natureofcode.com/book/chapter-10-neural-networks/#chapter10_figure3 
+
+一层的神经网络（感知器模型）(dcu.ie)
+
+http://computing.dcu.ie/~humphrys/Notes/Neural/single.neural.html
+
+从感知器模型到深度网络(toptal.com)
+
+https://www.toptal.com/machi                         ne-learning/an-introduction-to-deep-learning-from-perceptrons-to-deep-networks
+
+5、回归算法
+
+线性回归分析简介(duke.edu)
+
+http://people.duke.edu/~rnau/regintro.htm
+
+线性回归 (ufldl.stanford.edu)
+
+http://ufldl.stanford.edu/tutorial/supervised/LinearRegression/
+
+线性回归 (readthedocs.io)
+
+http://ml-cheatsheet.readthedocs.io/en/latest/linear_regression.html
+
+逻辑斯特回归 (readthedocs.io)
+
+http://ml-cheatsheet.readthedocs.io/en/latest/logistic_regression.html 
+
+机器学习之简单线性回归教程(machinelearningmastery.com)
+
+http://machinelearningmastery.com/simple-linear-regression-tutorial-for-machine-learning/
+
+机器学习之逻辑斯特回归教程(machinelearningmastery.com)
+
+http://machinelearningmastery.com/logistic-regression-tutorial-for-machine-learning/
+
+softmax 回归(ufldl.stanford.edu)
+
+http://ufldl.stanford.edu/tutorial/supervised/SoftmaxRegression/
+
+6、梯度下降
+
+基于梯度下降的学习 (neuralnetworksanddeeplearning.com)
+
+http://neuralnetworksanddeeplearning.com/chap1.html#learning_with_gradient_descent
+
+梯度下降(iamtrask.github.io)
+
+http://iamtrask.github.io/2015/07/27/python-network-part2/
+
+如何理解梯度下降算法？(kdnuggets.com)
+
+http://www.kdnuggets.com/2017/04/simple-understand-gradient-descent-algorithm.html
+
+梯度下降优化算法概览(sebastianruder.com)
+
+http://sebastianruder.com/optimizing-gradient-descent/
+
+优化算法：随机梯度下降算法 (Stanford CS231n)
+
+http://cs231n.github.io/optimization-1/
+
+7、生成学习
+
+生成学习算法 (Stanford CS229)
+
+http://cs229.stanford.edu/notes/cs229-notes2.pdf
+
+贝叶斯分类算法之实例解析(monkeylearn.com)
+
+https://monkeylearn.com/blog/practical-explanation-naive-bayes-classifier/
+
+8、支持向量机
+
+支持向量机（SVM）入门(monkeylearn.com)
+
+https://monkeylearn.com/blog/introduction-to-support-vector-machines-svm/
+
+支持向量机(Stanford CS229)
+
+http://cs229.stanford.edu/notes/cs229-notes3.pdf
+
+线性分类：支持向量机，Softmax (Stanford 231n)
+
+http://cs231n.github.io/linear-classify/
+
+9、后向传播算法（Backpropagation）
+
+后向传播算法必知(medium.com/@karpathy)
+
+https://medium.com/@karpathy/yes-you-should-understand-backprop-e2f06eab496b
+
+来，给我图解一下神经网络后向传播算法？(github.com/rasbt)
+
+https://github.com/rasbt/python-machine-learning-book/blob/master/faq/visual-backpropagation.md
+
+后向传播算法是如何运行的？(neuralnetworksanddeeplearning.com)
+
+http://neuralnetworksanddeeplearning.com/chap2.html
+
+沿时后向传播算法与梯度消失(wildml.com)
+
+http://www.wildml.com/2015/10/recurrent-neural-networks-tutorial-part-3-backpropagation-through-time-and-vanishing-gradients/
+
+简易入门沿时后向传播算法(machinelearningmastery.com)
+
+http://machinelearningmastery.com/gentle-introduction-backpropagation-time/
+
+奔跑吧，后向传播算法！(Stanford CS231n)
+
+http://cs231n.github.io/optimization-2/
+
