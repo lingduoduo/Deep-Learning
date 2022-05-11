@@ -6,7 +6,7 @@ import os
 
 # from history import add_history, plot_history, save_history
 from history import save_history, load_history
-from tensorflow.keras.layers import Dense, GlobalAvgPool1D
+
 
 os.environ["TF_CPP_LOG_LEVEL"] = "2"
 
@@ -117,7 +117,7 @@ def gru_model(word_dim, embedding_dim, seq_length):
 
 def lstm_model(word_dim, embedding_dim, seq_length):
     new_model = tf.keras.Sequential([
-        tf.keras.Layers.Embedding(word_dim, embedding_dim, input_length=seq_length),
+        tf.keras.layers.Embedding(word_dim, embedding_dim, input_length=seq_length),
         tf.keras.layers.LSTM(embedding_dim),
         tf.keras.layers.Dense(32, activation="relu"),
         tf.keras.layers.Dense(1, activation="sigmoid")
@@ -127,7 +127,7 @@ def lstm_model(word_dim, embedding_dim, seq_length):
 
 def bidirectional_model(word_dim, embedding_dim, seq_length):
     new_model = tf.keras.Sequential([
-        tf.keras.Layers.Embedding(word_dim, embedding_dim, input_length=seq_length),
+        tf.keras.layers.Embedding(word_dim, embedding_dim, input_length=seq_length),
         tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(embedding_dim)),
         tf.keras.layers.Dense(32, activation="relu"),
         tf.keras.layers.Dense(1, activation="sigmoid")
@@ -212,26 +212,25 @@ if __name__ == "__main__":
 
     dnn_embeddings = dnn.layers[0]
     cnn_embeddings = cnn.layers[0]
-    test_features[100]
-    dnn_embeddings(test_features[100])[0]
     dnn_embeddings.trainable = False
     cnn_embeddings.trainable = False
 
     dnn_trail = tf.keras.Sequential([
         dnn_embeddings,
-        GlobalAvgPool1D(),
-        Dense(32, activation="relu"),
-        Dense(1, activation="sigmoid"),
+        tf.keras.layers.GlobalAvgPool1D(),
+        tf.keras.layers.Dense(32, activation="relu"),
+        tf.keras.layers.Dense(1, activation="sigmoid"),
     ])
     dnn_trail = compile_model(dnn_trail)
     dnn_trail_history = dnn_trail.fit(train_data, train_labels, batch_size=64, validation_split=0.1, epochs=5)
     dnn_trail.evaluate(test_data, test_labels)
 
+
     cnn_trail = tf.keras.Sequential([
         cnn_embeddings,
-        GlobalAvgPool1D(),
-        Dense(32, activation="relu"),
-        Dense(1, activation="sigmoid"),
+        tf.keras.layers.GlobalAvgPool1D(),
+        tf.keras.layers.Dense(32, activation="relu"),
+        tf.keras.layers.Dense(1, activation="sigmoid"),
     ])
     cnn_trail = compile_model(cnn_trail)
     cnn_trail_history = cnn_trail.fit(train_data, train_labels, batch_size=64, validation_split=0.1, epochs=5)
