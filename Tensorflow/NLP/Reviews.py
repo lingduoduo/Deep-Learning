@@ -235,3 +235,10 @@ if __name__ == "__main__":
     cnn_trail = compile_model(cnn_trail)
     cnn_trail_history = cnn_trail.fit(train_data, train_labels, batch_size=64, validation_split=0.1, epochs=5)
     cnn_trail.evaluate(test_data, test_labels)
+
+    # improved_dnn = dnn_model(word_dim=12000, embedding_dim=10, seq_length=500)
+    # improved_dnn.summary()
+    # history_dnn = improved_dnn.fit(train_data, train_labels, callbacks=[earlystop, checkpoint], epochs=25, batch_size=64,
+    #                       validation_split=0.1)
+    # improved_dnn.evaluate(test_data, test_labels)
+    # save_model(improved_dnn, model_name, history_dnn, test_data, test_labels)
