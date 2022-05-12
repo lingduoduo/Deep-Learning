@@ -4,8 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
-# from history import add_history, plot_history, save_history
-from history import save_history, load_history
+from history import save_history, load_history, plot_history
 
 
 os.environ["TF_CPP_LOG_LEVEL"] = "2"
