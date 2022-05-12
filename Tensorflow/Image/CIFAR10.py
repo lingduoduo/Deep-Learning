@@ -35,6 +35,23 @@ def wrangle_data(data, split, batch_size=32):
     return data
 
 
+def dnn_model():
+    new_model = tf.keras.Sequential([
+        tf.keras.layers.InputLayer((32, 32, 3)),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(128, activation="relu"),
+        tf.keras.layers.Dense(64, activation="relu"),
+        tf.keras.layers.Dense(10, activation="softmax")
+    ])
+    return compile_model(new_model)
+
+
+def compile_model(new_model):
+    new_model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"])
+    print(new_model.summary)
+    return new_model
+
+
 if __name__ == "__main__":
     test_ds, image_info = retrieve_data()
     train_ds, valid_ds = get_training_data(validation_split=10)
@@ -43,4 +60,18 @@ if __name__ == "__main__":
     train_data = wrangle_data(train_ds, "train", batch_size=batch_size)
     valid_data = wrangle_data(valid_ds, "valid", batch_size=batch_size)
     test_data = wrangle_data(test_ds, "test", batch_size=batch_size)
+
+    # Prepare the model
+    model_name= "dnn"
+    model = dnn_model()
+
+    # Create training callbacks
+    earlystop = tf.keras.callbacks.EarlyStopping("val_loss", patience=5, restore_best_weights=True)
+    checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=f"ckpts/cifar10-{model_name}-" + "{epoch:02d}-{val_accuarcy:.4f}")
+
+    # Train the model
+    history = model.fit(train_data, validation_data=valid_data, epochs=10, callbacks=[earlystop, checkpoint])
+
+    # Evaluate the model
+
 
