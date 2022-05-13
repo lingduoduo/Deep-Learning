@@ -2,3 +2,5 @@ data/
 *.h5
 NLP/ckpts/
 NLP/models/
+Image/ckpts/
+Image/models/
