@@ -143,72 +143,72 @@ if __name__ == "__main__":
     valid_data = wrangle_data(valid_ds, "valid", batch_size=batch_size)
     test_data = wrangle_data(test_ds, "test", batch_size=batch_size)
 
-    # # Prepare the model
-    # model_name= "dnn"
-    # model = dnn_model()
-    #
-    # # Create training callbacks
-    # earlystop = tf.keras.callbacks.EarlyStopping("val_loss", patience=5, restore_best_weights=True)
-    # checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=f"ckpts/cifar10-{model_name}-" + "{epoch:02d}-{val_accuracy:.4f}")
-    #
-    # # Train the model
-    # history = model.fit(train_data, validation_data=valid_data, epochs=10, callbacks=[earlystop, checkpoint])
-    # plot_history(history)
-    #
-    # # Evaluate the model
-    # test_loss, test_acc = model.evaluate(test_data)
-    # print(f"Test accuray: {test_acc * 100: .2f}%")
-    #
-    # more_history = model.fit(train_data, validation_data=valid_data, callbacks=[earlystop, checkpoint], initial_epoch=10, epochs=20)
-    # add_history(history, more_history)
-    #
+    # Prepare the model
+    model_name= "dnn"
+    model = dnn_model()
+
+    # Create training callbacks
+    earlystop = tf.keras.callbacks.EarlyStopping("val_loss", patience=5, restore_best_weights=True)
+    checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=f"ckpts/cifar10-{model_name}-" + "{epoch:02d}-{val_accuracy:.4f}")
+
+    # Train the model
+    history = model.fit(train_data, validation_data=valid_data, epochs=10, callbacks=[earlystop, checkpoint])
+    plot_history(history)
+
+    # Evaluate the model
+    test_loss, test_acc = model.evaluate(test_data)
+    print(f"Test accuray: {test_acc * 100: .2f}%")
+
+    more_history = model.fit(train_data, validation_data=valid_data, callbacks=[earlystop, checkpoint], initial_epoch=10, epochs=20)
+    add_history(history, more_history)
+
     # Save model information
-    # save_model(model, model_name, history, test_data)
+    save_model(model, model_name, history, test_data)
 
-    # model_name = "cnn"
-    # model = cnn_model()
-    #
-    # # Create training callbacks
-    # earlystop = tf.keras.callbacks.EarlyStopping("val_loss", patience=5, restore_best_weights=True)
-    # checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=f"ckpts/cifar10-{model_name}-" + "{epoch:02d}-{val_accuracy:.4f}")
-    #
-    # # Train the model
-    # history = model.fit(train_data, validation_data=valid_data, epochs=10, callbacks=[earlystop, checkpoint])
-    # plot_history(history)
-    #
-    # # Evaluate the model
-    # test_loss, test_acc = model.evaluate(test_data)
-    # print(f"Test accuray: {test_acc * 100: .2f}%")
-    #
-    # more_history = model.fit(train_data, validation_data=valid_data, callbacks=[earlystop, checkpoint], initial_epoch=10, epochs=20)
-    # add_history(history, more_history)
-    #
-    # better_model = tf.keras.models.load_model("ckpts/cifar-10-cnn-04-0.8176")
-    # better_model.evaluate(test_data)
-    #
-    # # Save model information
-    # save_model(better_model, "cnn-ck4", history, test_data)
+    model_name = "cnn"
+    model = cnn_model()
 
-    # model_name = "2cnn"
-    # model = two_cnn_model()
-    #
-    # # Create training callbacks
-    # earlystop = tf.keras.callbacks.EarlyStopping("val_loss", patience=5, restore_best_weights=True)
-    # checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=f"ckpts/cifar10-{model_name}-" + "{epoch:02d}-{val_accuracy:.4f}")
-    #
-    # # Train the model
-    # history = model.fit(train_data, validation_data=valid_data, epochs=10, callbacks=[earlystop, checkpoint])
-    # plot_history(history)
-    #
-    # # Evaluate the model
-    # test_loss, test_acc = model.evaluate(test_data)
-    # print(f"Test accuray: {test_acc * 100: .2f}%")
-    #
-    # more_history = model.fit(train_data, validation_data=valid_data, callbacks=[earlystop, checkpoint], initial_epoch=10, epochs=20)
-    # add_history(history, more_history)
-    #
-    # # Save model information
-    # save_model(model, "two-cnn", history, test_data)
+    # Create training callbacks
+    earlystop = tf.keras.callbacks.EarlyStopping("val_loss", patience=5, restore_best_weights=True)
+    checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=f"ckpts/cifar10-{model_name}-" + "{epoch:02d}-{val_accuracy:.4f}")
+
+    # Train the model
+    history = model.fit(train_data, validation_data=valid_data, epochs=10, callbacks=[earlystop, checkpoint])
+    plot_history(history)
+
+    # Evaluate the model
+    test_loss, test_acc = model.evaluate(test_data)
+    print(f"Test accuray: {test_acc * 100: .2f}%")
+
+    more_history = model.fit(train_data, validation_data=valid_data, callbacks=[earlystop, checkpoint], initial_epoch=10, epochs=20)
+    add_history(history, more_history)
+
+    better_model = tf.keras.models.load_model("ckpts/cifar-10-cnn-04-0.8176")
+    better_model.evaluate(test_data)
+
+    # Save model information
+    save_model(better_model, "cnn-ck4", history, test_data)
+
+    model_name = "2cnn"
+    model = two_cnn_model()
+
+    # Create training callbacks
+    earlystop = tf.keras.callbacks.EarlyStopping("val_loss", patience=5, restore_best_weights=True)
+    checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=f"ckpts/cifar10-{model_name}-" + "{epoch:02d}-{val_accuracy:.4f}")
+
+    # Train the model
+    history = model.fit(train_data, validation_data=valid_data, epochs=10, callbacks=[earlystop, checkpoint])
+    plot_history(history)
+
+    # Evaluate the model
+    test_loss, test_acc = model.evaluate(test_data)
+    print(f"Test accuray: {test_acc * 100: .2f}%")
+
+    more_history = model.fit(train_data, validation_data=valid_data, callbacks=[earlystop, checkpoint], initial_epoch=10, epochs=20)
+    add_history(history, more_history)
+
+    # Save model information
+    save_model(model, "two-cnn", history, test_data)
 
     model_name = "three_cnn_model_augment"
     model = three_cnn_model()
