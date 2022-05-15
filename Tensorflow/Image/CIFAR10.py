@@ -2,6 +2,7 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import os
 import json
+import numpy as np
 
 from history import save_history, load_history, plot_history, add_history
 
@@ -26,13 +27,17 @@ def wrangle_data(data, split, batch_size=32):
     data = data.map(lambda f, l: (tf.cast(f, tf.float64) / 255, l))
 
     if split == "train":
-        data = data.shuffle(buffer_size=5000)
-    elif split == "valid":
-        data = data.cache()
-    elif split == "test":
-        data = data.cache()
-
-    data = data.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        features = np.array([x[0] for x in data])
+        labels = np.array([x[1] for x in data])
+        train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
+            horizontal_flip=True,
+            zoom_range=0.2,
+            rotation_range=20,
+            fill_mode='nearest'
+        )
+        data = train_datagen.flow(features, labels, batch_size=batch_size)
+    elif split in ("valid",  "test"):
+        data = data.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
     return data
 
@@ -81,6 +86,54 @@ def cnn_model():
     return compile_model(new_model)
 
 
+def two_cnn_model():
+    new_model = tf.keras.Sequential([
+        tf.keras.layers.InputLayer((32,32,3)),
+        tf.keras.layers.Conv2D(32, 3, activation="relu"),
+        tf.keras.layers.MaxPool2D(),
+        tf.keras.layers.Conv2D(64, 3, activation="relu"),
+        tf.keras.layers.MaxPool2D(),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(128, activation="relu"),
+        tf.keras.layers.Dense(10, activation="softmax")
+    ])
+    return compile_model(new_model)
+
+
+def three_cnn_model_augment():
+    new_model = tf.keras.Sequential([
+        tf.keras.layers.InputLayer((32,32,3)),
+        tf.keras.layers.Conv2D(32, 3, activation="relu"),
+        tf.keras.layers.MaxPool2D(),
+        tf.keras.layers.Conv2D(64, 3, activation="relu"),
+        tf.keras.layers.MaxPool2D(),
+        tf.keras.layers.Conv2D(128, 3, activation="relu"),
+        tf.keras.layers.Conv2D(128, 3, activation="relu"),
+        tf.keras.layers.MaxPool2D(),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dropout(0.3),
+        tf.keras.layers.Dense(258, activation="relu"),
+        tf.keras.layers.Dense(10, activation="softmax")
+    ])
+    return compile_model(new_model)
+
+
+def three_cnn_model():
+    new_model = tf.keras.Sequential([
+        tf.keras.layers.InputLayer((32,32,3)),
+        tf.keras.layers.Conv2D(32, 3, activation="relu"),
+        tf.keras.layers.MaxPool2D(),
+        tf.keras.layers.Conv2D(64, 3, activation="relu"),
+        tf.keras.layers.MaxPool2D(),
+        tf.keras.layers.Conv2D(128, 3, activation="relu"),
+        tf.keras.layers.MaxPool2D(),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dropout(0.3),
+        tf.keras.layers.Dense(128, activation="relu"),
+        tf.keras.layers.Dense(10, activation="softmax")
+    ])
+    return compile_model(new_model)
+
 if __name__ == "__main__":
     test_ds, image_info = retrieve_data()
     train_ds, valid_ds = get_training_data(validation_split=10)
@@ -109,18 +162,63 @@ if __name__ == "__main__":
     # more_history = model.fit(train_data, validation_data=valid_data, callbacks=[earlystop, checkpoint], initial_epoch=10, epochs=20)
     # add_history(history, more_history)
     #
-    # # Save model information
+    # Save model information
     # save_model(model, model_name, history, test_data)
 
-    model_name = "cnn"
-    model = cnn_model()
+    # model_name = "cnn"
+    # model = cnn_model()
+    #
+    # # Create training callbacks
+    # earlystop = tf.keras.callbacks.EarlyStopping("val_loss", patience=5, restore_best_weights=True)
+    # checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=f"ckpts/cifar10-{model_name}-" + "{epoch:02d}-{val_accuracy:.4f}")
+    #
+    # # Train the model
+    # history = model.fit(train_data, validation_data=valid_data, epochs=10, callbacks=[earlystop, checkpoint])
+    # plot_history(history)
+    #
+    # # Evaluate the model
+    # test_loss, test_acc = model.evaluate(test_data)
+    # print(f"Test accuray: {test_acc * 100: .2f}%")
+    #
+    # more_history = model.fit(train_data, validation_data=valid_data, callbacks=[earlystop, checkpoint], initial_epoch=10, epochs=20)
+    # add_history(history, more_history)
+    #
+    # better_model = tf.keras.models.load_model("ckpts/cifar-10-cnn-04-0.8176")
+    # better_model.evaluate(test_data)
+    #
+    # # Save model information
+    # save_model(better_model, "cnn-ck4", history, test_data)
+
+    # model_name = "2cnn"
+    # model = two_cnn_model()
+    #
+    # # Create training callbacks
+    # earlystop = tf.keras.callbacks.EarlyStopping("val_loss", patience=5, restore_best_weights=True)
+    # checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=f"ckpts/cifar10-{model_name}-" + "{epoch:02d}-{val_accuracy:.4f}")
+    #
+    # # Train the model
+    # history = model.fit(train_data, validation_data=valid_data, epochs=10, callbacks=[earlystop, checkpoint])
+    # plot_history(history)
+    #
+    # # Evaluate the model
+    # test_loss, test_acc = model.evaluate(test_data)
+    # print(f"Test accuray: {test_acc * 100: .2f}%")
+    #
+    # more_history = model.fit(train_data, validation_data=valid_data, callbacks=[earlystop, checkpoint], initial_epoch=10, epochs=20)
+    # add_history(history, more_history)
+    #
+    # # Save model information
+    # save_model(model, "two-cnn", history, test_data)
+
+    model_name = "three_cnn_model_augment"
+    model = three_cnn_model()
 
     # Create training callbacks
     earlystop = tf.keras.callbacks.EarlyStopping("val_loss", patience=5, restore_best_weights=True)
     checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=f"ckpts/cifar10-{model_name}-" + "{epoch:02d}-{val_accuracy:.4f}")
 
     # Train the model
-    history = model.fit(train_data, validation_data=valid_data, epochs=10, callbacks=[earlystop, checkpoint])
+    history = model.fit(train_data, validation_data=valid_data, epochs=25, callbacks=[earlystop, checkpoint])
     plot_history(history)
 
     # Evaluate the model
@@ -130,8 +228,5 @@ if __name__ == "__main__":
     more_history = model.fit(train_data, validation_data=valid_data, callbacks=[earlystop, checkpoint], initial_epoch=10, epochs=20)
     add_history(history, more_history)
 
-    better_model = tf.keras.models.load_model("ckpts/cifar-10-cnn-04-0.8176")
-    better_model.evaluate(test_data)
-
-    # # Save model information
-    save_model(better_model, "cnn-ck4", history, test_data)
+    # Save model information
+    save_model(model, "three-cnn", history, test_data)
