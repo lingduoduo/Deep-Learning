@@ -1,0 +1,8 @@
+04/cls_reg/mnist/MNIST
+*/*/*events.out.*
+09/datasets/*
+09/logs/*
+09/models/*
+09/outputs/*
+09/__pycache__/*
+09/__pycache__
