@@ -13,9 +13,3 @@ a = torch.sparse_coo_tensor(i, v, (4, 4),
                             dtype=torch.float32,
                             device=dev).to_dense()
 print(a)
-
-
-
-
-
-
