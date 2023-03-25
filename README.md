@@ -1,6 +1,6 @@
 ## Distribution
 
-[Distribution](https://github.com/lingduoduo/Deep-Learning/blob/master/distribution.png)
+![Distribution](https://github.com/lingduoduo/Deep-Learning/blob/master/distribution.png)
 
 ## WSDM 2022
 
