@@ -18,12 +18,9 @@ print(nn)
 
 
 z.backward(gradient=nn, retain_graph=True)
-torch.autograd.backward(z,
-                        grad_tensors=nn,
-                        retain_graph=True)
+torch.autograd.backward(z, grad_tensors=nn, retain_graph=True)
 
-print(torch.autograd.grad(z, [x, y, z],
-                    grad_outputs=nn))
+print(torch.autograd.grad(z, [x, y, z], grad_outputs=nn))
 
 print(x.grad)
 print(y.grad)
@@ -31,6 +28,5 @@ print(x.grad_fn)
 print(y.grad_fn)
 print(z.grad_fn)
 
-#
 
 
