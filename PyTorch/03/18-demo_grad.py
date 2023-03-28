@@ -27,6 +27,3 @@ print(y.grad)
 print(x.grad_fn)
 print(y.grad_fn)
 print(z.grad_fn)
-
-
-
