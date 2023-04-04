@@ -1,15 +1,16 @@
 import torch
-#data
+# data
 import numpy as np
 import re
+
 ff = open("housing.data").readlines()
 data = []
 for item in ff:
     out = re.sub(r"\s{2,}", " ", item).strip()
-    print(out)
+    # print(out)
     data.append(out.split(" "))
 data = np.array(data).astype(np.float)
-print(data.shape)
+# print(data.shape)
 
 Y = data[:, -1]
 X = data[:, 0:-1]
@@ -24,22 +25,29 @@ print(Y_train.shape)
 print(X_test.shape)
 print(Y_test.shape)
 
-#net
+
+# net
 class Net(torch.nn.Module):
     def __init__(self, n_feature, n_output):
         super(Net, self).__init__()
         self.hidden = torch.nn.Linear(n_feature, 100)
         self.predict = torch.nn.Linear(100, n_output)
+
     def forward(self, x):
         out = self.hidden(x)
         out = torch.relu(out)
         out = self.predict(out)
         return out
+
+
 net = Net(13, 1)
+
 #loss
 loss_func = torch.nn.MSELoss()
+
 #optimiter
 optimizer = torch.optim.Adam(net.parameters(), lr=0.01)
+
 #training
 for i in range(10000):
     x_data = torch.tensor(X_train, dtype=torch.float32)
