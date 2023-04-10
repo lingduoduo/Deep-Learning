@@ -14,8 +14,10 @@ label_dict = {}
 for idx, name in enumerate(label_name):
     label_dict[name] = idx
 
+
 def default_loader(path):
     return Image.open(path).convert("RGB")
+
 
 # train_transform = transforms.Compose([
 #     transforms.RandomCrop(28),
@@ -42,6 +44,7 @@ test_transform = transforms.Compose([
                          (0.2023, 0.1994, 0.2010)),
 ])
 
+
 # train_transform = transforms.Compose([
 #     transforms.RandomCrop(28),
 #     transforms.RandomHorizontalFlip(),
@@ -60,13 +63,11 @@ test_transform = transforms.Compose([
 class MyDataset(Dataset):
     def __init__(self, im_list,
                  transform=None,
-                 loader = default_loader):
+                 loader=default_loader):
         super(MyDataset, self).__init__()
         imgs = []
 
         for im_item in im_list:
-            #"/home/kuan/dataset/CIFAR10/TRAIN/" \
-            #"airplane/aeroplane_s_000021.png"
             im_label_name = im_item.split("/")[-2]
             imgs.append([im_item, label_dict[im_label_name]])
 
@@ -85,32 +86,24 @@ class MyDataset(Dataset):
     def __len__(self):
         return len(self.imgs)
 
-im_train_list = glob.glob("/home/kuan/dataset/CIFAR10/TRAIN/*/*.png")
-im_test_list = glob.glob("/home/kuan/dataset/CIFAR10/TEST/*/*.png")
 
-train_dataset = MyDataset(im_train_list,
-                         transform=train_transform)
-test_dataset = MyDataset(im_test_list,
-                        transform =test_transform)
+im_train_list = glob.glob("/Users/linghuang/Git/Deep-Learning/Pytorch/train/*/*.png")
+im_test_list = glob.glob("/Users/linghuang/Git/Deep-Learning/Pytorch/test/*/*.png")
+
+train_dataset = MyDataset(im_train_list, transform=train_transform)
+test_dataset = MyDataset(im_test_list, transform=transforms.ToTensor)
 
 train_loader = DataLoader(dataset=train_dataset,
-                               batch_size=128,
-                               shuffle=True,
-                               num_workers=4)
+                          # batch_size=128,
+                          batch_size=6,
+                          shuffle=True,
+                          num_workers=4)
 
 test_loader = DataLoader(dataset=test_dataset,
-                               batch_size=128,
-                               shuffle=False,
-                               num_workers=4)
+                         # batch_size=128,
+                         batch_size=6,
+                         shuffle=False,
+                         num_workers=4)
 
 print("num_of_train", len(train_dataset))
 print("num_of_test", len(test_dataset))
-
-
-
-
-
-
-
-
-
