@@ -73,8 +73,8 @@ class MyDataset(Dataset):
     def __len__(self):
         return len(self.imgs)
 
-im_train_list = glob.glob("/home/kuan/dataset/CIFAR10/TRAIN/*/*.png")
-im_test_list = glob.glob("/home/kuan/dataset/CIFAR10/TEST/*/*.png")
+im_train_list = glob.glob("/home/ling/dataset/CIFAR10/TRAIN/*/*.png")
+im_test_list = glob.glob("/home/ling/dataset/CIFAR10/TEST/*/*.png")
 
 train_dataset = MyDataset(im_train_list,
                          transform=train_transform)
