@@ -8,3 +8,4 @@ Series/ckpts/
 Series/models/
 .idea
 *.xml
+*.npy
