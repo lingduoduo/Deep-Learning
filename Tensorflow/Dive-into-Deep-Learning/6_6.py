@@ -27,15 +27,16 @@ def load_data_fashion_mnist(batch_size, resize=None):
     mnist_train, mnist_test = tf.keras.datasets.fashion_mnist.load_data()
     # Divide all numbers by 255 so that all pixel values are between
     # 0 and 1, add a batch dimension at the last. And cast label to int32
-    process = lambda X, y: (tf.expand_dims(X, axis=3) / 255,
-                            tf.cast(y, dtype='int32'))
-    resize_fn = lambda X, y: (
-        tf.image.resize_with_pad(X, resize, resize) if resize else X, y)
+    process = lambda X, y: (tf.expand_dims(X, axis=3) / 255, tf.cast(y, dtype='int32'))
+    resize_fn = lambda X, y: (tf.image.resize_with_pad(X, resize, resize) if resize else X, y)
     return (
-        tf.data.Dataset.from_tensor_slices(process(*mnist_train)).batch(
-            batch_size).shuffle(len(mnist_train[0])).map(resize_fn),
-        tf.data.Dataset.from_tensor_slices(process(*mnist_test)).batch(
-            batch_size).map(resize_fn))
+        tf.data.Dataset.from_tensor_slices(process(*mnist_train))
+        .batch(batch_size)
+        .shuffle(len(mnist_train[0]))
+        .map(resize_fn),
+        tf.data.Dataset.from_tensor_slices(process(*mnist_test))
+        .batch(batch_size)
+        .map(resize_fn))
 
 batch_size = 256
 train_iter, test_iter = load_data_fashion_mnist(batch_size=batch_size)
@@ -81,8 +82,7 @@ def train_ch6(net_fn, train_iter, test_iter, num_epochs, lr, device):
         loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
         net = net_fn()
         net.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
-    callback = TrainCallback(net, train_iter, test_iter, num_epochs,
-                             device_name)
+    callback = TrainCallback(net, train_iter, test_iter, num_epochs, device_name)
     net.fit(train_iter, epochs=num_epochs, verbose=0, callbacks=[callback])
     return net
 
