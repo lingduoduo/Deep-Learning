@@ -3,11 +3,9 @@ from d2l import tensorflow as d2l
 
 def net():
     return tf.keras.models.Sequential([
-        tf.keras.layers.Conv2D(filters=6, kernel_size=5, activation='sigmoid',
-                               padding='same'),
+        tf.keras.layers.Conv2D(filters=6, kernel_size=5, activation='sigmoid', padding='same'),
         tf.keras.layers.AvgPool2D(pool_size=2, strides=2),
-        tf.keras.layers.Conv2D(filters=16, kernel_size=5,
-                               activation='sigmoid'),
+        tf.keras.layers.Conv2D(filters=16, kernel_size=5,activation='sigmoid'),
         tf.keras.layers.AvgPool2D(pool_size=2, strides=2),
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(120, activation='sigmoid'),

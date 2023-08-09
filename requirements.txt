@@ -10,3 +10,5 @@ seaborn==0.12.2
 tensorflow
 tensorflow-probability
 requests==2.25.1
+torch
+torchvision
