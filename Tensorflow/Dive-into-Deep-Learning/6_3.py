@@ -1,3 +1,5 @@
+# 填充和步幅
+
 import tensorflow as tf
 
 

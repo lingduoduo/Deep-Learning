@@ -1,3 +1,5 @@
+# 6.4. 多输入多输出通道
+
 import tensorflow as tf
 
 def corr2d(X, K):
