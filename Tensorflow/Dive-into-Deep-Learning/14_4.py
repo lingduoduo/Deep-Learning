@@ -1,14 +1,15 @@
-# 预训练词嵌入的数据集
+# 预训练word2vec
 
 import math
+import torch
+from torch import nn
+from d2l import torch as d2l
+import random
 import os
 import random
-import torch
-from d2l import torch as d2l
 
-d2l.DATA_HUB['ptb'] = (d2l.DATA_URL + 'ptb.zip', '319d85e578af0cdc590547f26231e4e31cdf1e42')
 
-#@save
+
 def read_ptb():
     """将PTB数据集加载到文本行的列表中"""
     data_dir = d2l.download_extract('ptb')
@@ -17,14 +18,6 @@ def read_ptb():
         raw_text = f.read()
     return [line.split() for line in raw_text.split('\n')]
 
-sentences = read_ptb()
-print(f'# sentences数: {len(sentences)}')
-
-vocab = d2l.Vocab(sentences, min_freq=10)
-print(f'vocab size: {len(vocab)}')
-
-
-#@save
 def subsample(sentences, vocab):
     """下采样高频词"""
     # 排除未知词元'<unk>'
@@ -38,26 +31,7 @@ def subsample(sentences, vocab):
 
     return ([[token for token in line if keep(token)] for line in sentences], counter)
 
-subsampled, counter = subsample(sentences, vocab)
 
-d2l.show_list_len_pair_hist(
-    ['origin', 'subsampled'], '# tokens per sentence',
-    'count', sentences, subsampled);
-
-
-def compare_counts(token):
-    return (f'"{token}"的数量：'
-            f'之前={sum([l.count(token) for l in sentences])}, '
-            f'之后={sum([l.count(token) for l in subsampled])}')
-
-print(compare_counts('the'))
-print(compare_counts('join'))
-
-corpus = [vocab[line] for line in subsampled]
-print(corpus[:3])
-
-
-#@save
 def get_centers_and_contexts(corpus, max_window_size):
     """返回跳元模型中的中心词和上下文词"""
     centers, contexts = [], []
@@ -75,15 +49,7 @@ def get_centers_and_contexts(corpus, max_window_size):
             contexts.append([line[idx] for idx in indices])
     return centers, contexts
 
-tiny_dataset = [list(range(7)), list(range(7, 10))]
-print('数据集', tiny_dataset)
-for center, context in zip(*get_centers_and_contexts(tiny_dataset, 2)):
-    print('中心词', center, '的上下文词是', context)
 
-all_centers, all_contexts = get_centers_and_contexts(corpus, 5)
-print(f'# “中心词-上下文词对”的数量: {sum([len(contexts) for contexts in all_contexts])}')
-
-#@save
 class RandomGenerator:
     """根据n个采样权重在{1,...,n}中随机抽取"""
     def __init__(self, sampling_weights):
@@ -102,12 +68,7 @@ class RandomGenerator:
         self.i += 1
         return self.candidates[self.i - 1]
 
-#@save
-generator = RandomGenerator([2, 3, 4])
-[generator.draw() for _ in range(10)]
 
-
-#@save
 def get_negatives(all_contexts, vocab, counter, K):
     """返回负采样中的噪声词"""
     # 索引为1、2、...（索引0是词表中排除的未知标记）
@@ -124,10 +85,6 @@ def get_negatives(all_contexts, vocab, counter, K):
         all_negatives.append(negatives)
     return all_negatives
 
-all_negatives = get_negatives(all_contexts, vocab, counter, 5)
-
-
-#@save
 def batchify(data):
     """返回带有负采样的跳元模型的小批量样本"""
     max_len = max(len(c) + len(n) for _, c, n in data)
@@ -142,13 +99,6 @@ def batchify(data):
     return (torch.tensor(centers).reshape((-1, 1)), torch.tensor(
         contexts_negatives), torch.tensor(masks), torch.tensor(labels))
 
-x_1 = (1, [2, 2], [3, 3, 3, 3])
-x_2 = (1, [2, 2, 2], [3, 3])
-batch = batchify((x_1, x_2))
-
-names = ['centers', 'contexts_negatives', 'masks', 'labels']
-for name, data in zip(names, batch):
-    print(name, '=', data)
 
 def load_data_ptb(batch_size, max_window_size, num_noise_words):
     """下载PTB数据集，然后将其加载到内存中"""
@@ -183,9 +133,95 @@ def load_data_ptb(batch_size, max_window_size, num_noise_words):
         collate_fn=batchify, num_workers=num_workers)
     return data_iter, vocab
 
-
+batch_size, max_window_size, num_noise_words = 512, 5, 5
+# data_iter, vocab = d2l.load_data_ptb(batch_size, max_window_size, num_noise_words)
 data_iter, vocab = load_data_ptb(512, 5, 5)
-for batch in data_iter:
-    for name, data in zip(names, batch):
-        print(name, 'shape:', data.shape)
-    break
+
+embed = nn.Embedding(num_embeddings=20, embedding_dim=4)
+print(f'Parameter embedding_weight ({embed.weight.shape}, 'f'dtype={embed.weight.dtype})')
+x = torch.tensor([[1, 2, 3], [4, 5, 6]])
+embed(x)
+
+def skip_gram(center, contexts_and_negatives, embed_v, embed_u):
+    v = embed_v(center)
+    u = embed_u(contexts_and_negatives)
+    pred = torch.bmm(v, u.permute(0, 2, 1))
+    return pred
+
+skip_gram(torch.ones((2, 1), dtype=torch.long),
+          torch.ones((2, 4), dtype=torch.long), embed, embed).shape
+
+class SigmoidBCELoss(nn.Module):
+    # 带掩码的二元交叉熵损失
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, inputs, target, mask=None):
+        out = nn.functional.binary_cross_entropy_with_logits(
+            inputs, target, weight=mask, reduction="none")
+        return out.mean(dim=1)
+
+loss = SigmoidBCELoss()
+
+pred = torch.tensor([[1.1, -2.2, 3.3, -4.4]] * 2)
+label = torch.tensor([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]])
+mask = torch.tensor([[1, 1, 1, 1], [1, 1, 0, 0]])
+print(loss(pred, label, mask) * mask.shape[1] / mask.sum(axis=1))
+
+def sigmd(x):
+    return -math.log(1 / (1 + math.exp(-x)))
+
+print(f'{(sigmd(1.1) + sigmd(2.2) + sigmd(-3.3) + sigmd(4.4)) / 4:.4f}')
+print(f'{(sigmd(-1.1) + sigmd(-2.2)) / 2:.4f}')
+
+embed_size = 100
+net = nn.Sequential(nn.Embedding(num_embeddings=len(vocab),
+                                 embedding_dim=embed_size),
+                    nn.Embedding(num_embeddings=len(vocab),
+                                 embedding_dim=embed_size))
+#
+# def train(net, data_iter, lr, num_epochs, device=d2l.try_gpu()):
+#     def init_weights(m):
+#         if type(m) == nn.Embedding:
+#             nn.init.xavier_uniform_(m.weight)
+#     net.apply(init_weights)
+#     net = net.to(device)
+#     optimizer = torch.optim.Adam(net.parameters(), lr=lr)
+#     animator = d2l.Animator(xlabel='epoch', ylabel='loss',
+#                             xlim=[1, num_epochs])
+#     # 规范化的损失之和，规范化的损失数
+#     metric = d2l.Accumulator(2)
+#     for epoch in range(num_epochs):
+#         timer, num_batches = d2l.Timer(), len(data_iter)
+#         for i, batch in enumerate(data_iter):
+#             optimizer.zero_grad()
+#             center, context_negative, mask, label = [
+#                 data.to(device) for data in batch]
+#
+#             pred = skip_gram(center, context_negative, net[0], net[1])
+#             l = (loss(pred.reshape(label.shape).float(), label.float(), mask)
+#                      / mask.sum(axis=1) * mask.shape[1])
+#             l.sum().backward()
+#             optimizer.step()
+#             metric.add(l.sum(), l.numel())
+#             if (i + 1) % (num_batches // 5) == 0 or i == num_batches - 1:
+#                 animator.add(epoch + (i + 1) / num_batches,
+#                              (metric[0] / metric[1],))
+#     print(f'loss {metric[0] / metric[1]:.3f}, '
+#           f'{metric[1] / timer.stop():.1f} tokens/sec on {str(device)}')
+#
+#
+# lr, num_epochs = 0.002, 5
+# train(net, data_iter, lr, num_epochs)
+
+def get_similar_tokens(query_token, k, embed):
+    W = embed.weight.data
+    x = W[vocab[query_token]]
+    # 计算余弦相似性。增加1e-9以获得数值稳定性
+    cos = torch.mv(W, x) / torch.sqrt(torch.sum(W * W, dim=1) *
+                                      torch.sum(x * x) + 1e-9)
+    topk = torch.topk(cos, k=k+1)[1].cpu().numpy().astype('int32')
+    for i in topk[1:]:  # 删除输入词
+        print(f'cosine sim={float(cos[i]):.3f}: {vocab.to_tokens(i)}')
+
+print(get_similar_tokens('chip', 3, net[0]))
