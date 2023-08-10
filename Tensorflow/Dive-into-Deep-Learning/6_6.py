@@ -1,4 +1,7 @@
+# 6.6. 卷积神经网络
+
 import tensorflow as tf
+
 from d2l import tensorflow as d2l
 
 def net():

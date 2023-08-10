@@ -1,3 +1,5 @@
+# 5.3. 延后初始化
+
 import tensorflow as tf
 
 net = tf.keras.models.Sequential([
