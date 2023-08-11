@@ -6,3 +6,6 @@ Image/ckpts/
 Image/models/
 Series/ckpts/
 Series/models/
+.idea
+*.xml
+*.npy
