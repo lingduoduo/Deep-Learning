@@ -4,7 +4,8 @@ import tensorflow as tf
 
 from d2l import tensorflow as d2l
 
-def net():
+
+def LeNet():
     return tf.keras.models.Sequential([
         tf.keras.layers.Conv2D(filters=6, kernel_size=5, activation='sigmoid', padding='same'),
         tf.keras.layers.AvgPool2D(pool_size=2, strides=2),
@@ -16,7 +17,7 @@ def net():
         tf.keras.layers.Dense(10)])
 
 X = tf.random.uniform((1, 28, 28, 1))
-for layer in net().layers:
+for layer in LeNet().layers:
     X = layer(X)
     print(layer.__class__.__name__, 'output shape: \t', X.shape)
 
@@ -41,6 +42,21 @@ def load_data_fashion_mnist(batch_size, resize=None):
 
 batch_size = 256
 train_iter, test_iter = load_data_fashion_mnist(batch_size=batch_size)
+
+
+# trainer = d2l.Trainer(max_epochs=10)
+# data = d2l.FashionMNIST(batch_size=128)
+# with d2l.try_gpu():
+#     model = LeNet(lr=0.1)
+#     trainer.fit(model, data)
+
+def try_gpu(i=0):
+    """Return gpu(i) if exists, otherwise return cpu().
+
+    Defined in :numref:`sec_use_gpu`"""
+    if len(tf.config.experimental.list_physical_devices('GPU')) >= i + 1:
+        return tf.device(f'/GPU:{i}')
+    return tf.device('/CPU:0')
 
 class TrainCallback(tf.keras.callbacks.Callback):  #@save
     """一个以可视化的训练进展的回调"""
@@ -88,4 +104,4 @@ def train_ch6(net_fn, train_iter, test_iter, num_epochs, lr, device):
     return net
 
 lr, num_epochs = 0.9, 10
-train_ch6(net, train_iter, test_iter, num_epochs, lr, d2l.try_gpu())
+train_ch6(LeNet, train_iter, test_iter, num_epochs, lr, try_gpu())
