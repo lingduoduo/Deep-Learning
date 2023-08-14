@@ -1,5 +1,10 @@
 # 5.4. 自定义层
 
+# 在自定义层的时候继承了keras.Model基类，这个类中就包含build和call方法。这边相当于对build方法进行了重定义。
+# build方法用于在首次传入input时进行权重的初始化，keras会自动调用 build 方法来创建层的变量。
+# call方法是每一次进行前向传播计算时，Keras 会自动调用模型中每个层的 call 方法。
+# 简单来说，就是在首次传入Inputs进行初始化的时候build方法被keras自动调用了，然后再执行call计算。tensorflow官方文档讲优点是： 单独实现 build() 很好地将只创建一次权重与在每次调用时使用权重分开。
+
 import tensorflow as tf
 
 
