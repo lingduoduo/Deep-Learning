@@ -1,5 +1,7 @@
 import tensorflow as tf
-from d2l import tensorflow as d2l
+import time
+import numpy as np
+import tensorflow as tf
 
 
 def batch_norm(X, gamma, beta, moving_mean, moving_var, eps):
@@ -192,8 +194,14 @@ def train_ch6(net_fn, train_iter, test_iter, num_epochs, lr, device):
     net.fit(train_iter, epochs=num_epochs, verbose=0, callbacks=[callback])
     return net
 
+# Hyperparameters
 lr, num_epochs, batch_size = 1.0, 10, 256
+
+# Load data
 train_iter, test_iter = load_data_fashion_mnist(batch_size)
+
+# Train the model
 net = train_ch6(net, train_iter, test_iter, num_epochs, lr, try_gpu())
 
-tf.reshape(net.layers[1].gamma, (-1,)), tf.reshape(net.layers[1].beta, (-1,))
+# Accessing gamma and beta of a BatchNorm layer
+print(tf.reshape(net.layers[1].gamma, (-1,)), tf.reshape(net.layers[1].beta, (-1,)))
