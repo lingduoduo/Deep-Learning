@@ -103,3 +103,4 @@ def load_corpus_time_machine(max_tokens=-1):  #@save
 
 corpus, vocab = load_corpus_time_machine()
 print(len(corpus), len(vocab))
+
