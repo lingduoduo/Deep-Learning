@@ -376,4 +376,12 @@ def train_ch8(net, train_iter, vocab, lr, num_epochs, strategy,
     print(predict('traveller'))
 
 num_epochs, lr = 500, 1
-d2l.train_ch8(net, train_iter, vocab, lr, num_epochs, strategy)
+train_ch8(net, train_iter, vocab, lr, num_epochs, strategy)
+
+device_name = try_gpu()._device_name
+strategy = tf.distribute.OneDeviceStrategy(device_name)
+with strategy.scope():
+    net = RNNModel(rnn_layer, vocab_size=len(vocab))
+
+predict_ch8('time traveller', 10, net, vocab)
+
