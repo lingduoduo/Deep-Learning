@@ -1,5 +1,4 @@
 import tensorflow as tf
-from d2l import tensorflow as d2l
 import random
 import collections
 import re
@@ -377,11 +376,5 @@ def train_ch8(net, train_iter, vocab, lr, num_epochs, strategy,
 
 num_epochs, lr = 500, 1
 train_ch8(net, train_iter, vocab, lr, num_epochs, strategy)
-
-device_name = try_gpu()._device_name
-strategy = tf.distribute.OneDeviceStrategy(device_name)
-with strategy.scope():
-    net = RNNModel(rnn_layer, vocab_size=len(vocab))
-
 predict_ch8('time traveller', 10, net, vocab)
 
