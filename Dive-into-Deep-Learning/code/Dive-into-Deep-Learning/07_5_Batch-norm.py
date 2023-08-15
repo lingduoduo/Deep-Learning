@@ -1,4 +1,4 @@
-import tensorflow as tf
+
 import time
 import numpy as np
 import tensorflow as tf
@@ -165,23 +165,6 @@ class TrainCallback(tf.keras.callbacks.Callback):  #@save
 #@save
 def train_ch6(net_fn, train_iter, test_iter, num_epochs, lr, device):
     """用GPU训练模型(在第六章定义)"""
-    device_name = device._device_name
-    strategy = tf.distribute.OneDeviceStrategy(device_name)
-    with strategy.scope():
-        optimizer = tf.keras.optimizers.SGD(learning_rate=lr)
-        loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-        net = net_fn()
-        net.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
-    callback = TrainCallback(net, train_iter, test_iter, num_epochs,
-                             device_name)
-    net.fit(train_iter, epochs=num_epochs, verbose=0, callbacks=[callback])
-    return net
-
-
-def train_ch6(net_fn, train_iter, test_iter, num_epochs, lr, device):
-    """Train a model with a GPU (defined in Chapter 6).
-
-    Defined in :numref:`sec_lenet`"""
     device_name = device._device_name
     strategy = tf.distribute.OneDeviceStrategy(device_name)
     with strategy.scope():
