@@ -5,17 +5,17 @@ import torch
 from torch import nn
 from d2l import torch as d2l
 
-#@save
-d2l.DATA_HUB['glove.6b.50d'] = (d2l.DATA_URL + 'glove.6B.50d.zip',
-                                '0b8703943ccdb6eb788e6f091b8946e82231bc4d')
-
-#@save
-d2l.DATA_HUB['glove.6b.100d'] = (d2l.DATA_URL + 'glove.6B.100d.zip',
-                                 'cd43bfb07e44e6f27cbcc7bc9ae3d80284fdaf5a')
-
-#@save
-d2l.DATA_HUB['glove.42b.300d'] = (d2l.DATA_URL + 'glove.42B.300d.zip',
-                                  'b5116e234e9eb9076672cfeabf5469f3eec904fa')
+# #@save
+# d2l.DATA_HUB['glove.6b.50d'] = (d2l.DATA_URL + 'glove.6B.50d.zip',
+#                                 '0b8703943ccdb6eb788e6f091b8946e82231bc4d')
+#
+# #@save
+# d2l.DATA_HUB['glove.6b.100d'] = (d2l.DATA_URL + 'glove.6B.100d.zip',
+#                                  'cd43bfb07e44e6f27cbcc7bc9ae3d80284fdaf5a')
+#
+# #@save
+# d2l.DATA_HUB['glove.42b.300d'] = (d2l.DATA_URL + 'glove.42B.300d.zip',
+#                                   'b5116e234e9eb9076672cfeabf5469f3eec904fa')
 
 #@save
 class TokenEmbedding:
@@ -29,10 +29,10 @@ class TokenEmbedding:
 
     def _load_embedding(self, embedding_name):
         idx_to_token, idx_to_vec = ['<unk>'], []
-        data_dir = d2l.download_extract(embedding_name)
+        # data_dir = d2l.download_extract(embedding_name)
         # GloVe网站：https://nlp.stanford.edu/projects/glove/
         # fastText网站：https://fasttext.cc/
-        with open(os.path.join(data_dir, 'vec.txt'), 'r') as f:
+        with open(os.path.join('../data/glove.6b.50d/vec.txt'), 'r') as f:
             for line in f:
                 elems = line.rstrip().split(' ')
                 token, elems = elems[0], [float(elem) for elem in elems[1:]]
@@ -52,15 +52,12 @@ class TokenEmbedding:
     def __len__(self):
         return len(self.idx_to_token)
 
-
-
-#@save
-d2l.DATA_HUB['wiki.en'] = (d2l.DATA_URL + 'wiki.en.zip',
-                           'c1816da3821ae9f43899be655002f6c723e91b88')
-
 glove_6b50d = TokenEmbedding('glove.6b.50d')
+print(len(glove_6b50d))
+print(glove_6b50d.token_to_idx['beautiful'], glove_6b50d.idx_to_token[3367])
 
-len(glove_6b50d)
+
+print("--- KNN ---")
 
 def knn(W, x, k):
     # 增加1e-9以获得数值稳定性
@@ -75,9 +72,14 @@ def get_similar_tokens(query_token, k, embed):
     for i, c in zip(topk[1:], cos[1:]):  # 排除输入词
         print(f'{embed.idx_to_token[int(i)]}：cosine相似度={float(c):.3f}')
 
+
 get_similar_tokens('chip', 3, glove_6b50d)
 
 get_similar_tokens('baby', 3, glove_6b50d)
+
+get_similar_tokens('beautiful', 3, glove_6b50d)
+
+print("--- Analogy ---")
 
 def get_analogy(token_a, token_b, token_c, embed):
     vecs = embed[[token_a, token_b, token_c]]
