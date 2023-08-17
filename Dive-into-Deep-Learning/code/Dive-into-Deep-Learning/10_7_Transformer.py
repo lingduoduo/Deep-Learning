@@ -116,6 +116,26 @@ class DotProductAttention(tf.keras.layers.Layer):
 
     # Shape of `queries`: (`batch_size`, no. of queries, `d`)
     # Shape of `keys`: (`batch_size`, no. of key-value pairs, `d`)
+    # Shape of `values`: (`batch_size`, no. of key-value pairs, value dimension)
+    # Shape of `valid_lens`: (`batch_size`,) or (`batch_size`, no. of queries)
+    def call(self, queries, keys, values, valid_lens, **kwargs):
+        d = queries.shape[-1]
+        scores = tf.matmul(queries, keys, transpose_b=True)/tf.math.sqrt(
+            tf.cast(d, dtype=tf.float32))
+        self.attention_weights = masked_softmax(scores, valid_lens)
+        return tf.matmul(self.dropout(self.attention_weights, **kwargs), values)
+
+
+class DotProductAttention(tf.keras.layers.Layer):
+    """Scaled dot product attention.
+
+    Defined in :numref:`subsec_additive-attention`"""
+    def __init__(self, dropout, **kwargs):
+        super().__init__(**kwargs)
+        self.dropout = tf.keras.layers.Dropout(dropout)
+
+    # Shape of `queries`: (`batch_size`, no. of queries, `d`)
+    # Shape of `keys`: (`batch_size`, no. of key-value pairs, `d`)
     # Shape of `values`: (`batch_size`, no. of key-value pairs, value
     # dimension)
     # Shape of `valid_lens`: (`batch_size`,) or (`batch_size`, no. of queries)
@@ -126,7 +146,6 @@ class DotProductAttention(tf.keras.layers.Layer):
         self.attention_weights = masked_softmax(scores, valid_lens)
         return tf.matmul(self.dropout(self.attention_weights, **kwargs), values)
 
-
 class MultiHeadAttention(tf.keras.layers.Layer):
     """Multi-head attention.
 
@@ -135,7 +154,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
                  num_heads, dropout, bias=False, **kwargs):
         super().__init__(**kwargs)
         self.num_heads = num_heads
-        self.attention = d2l.DotProductAttention(dropout)
+        self.attention = DotProductAttention(dropout)
         self.W_q = tf.keras.layers.Dense(num_hiddens, use_bias=bias)
         self.W_k = tf.keras.layers.Dense(num_hiddens, use_bias=bias)
         self.W_v = tf.keras.layers.Dense(num_hiddens, use_bias=bias)
@@ -207,7 +226,15 @@ class PositionalEncoding(tf.keras.layers.Layer):
         X = X + self.P[:, :X.shape[1], :]
         return self.dropout(X, **kwargs)
 
-class TransformerEncoder(d2l.Encoder):
+class Encoder(tf.keras.layers.Layer):
+    """The base encoder interface for the encoder-decoder architecture."""
+    def __init__(self, **kwargs):
+        super(Encoder, self).__init__(**kwargs)
+
+    def call(self, X, *args, **kwargs):
+        raise NotImplementedError
+
+class TransformerEncoder(Encoder):
     """Transformer编码器"""
     def __init__(self, vocab_size, key_size, query_size, value_size,
                  num_hiddens, norm_shape, ffn_num_hiddens, num_heads,
