@@ -1,11 +1,13 @@
 # 预训练词嵌入的数据集
 
+import collections
 import math
-import os
 import random
+
 import torch
 from d2l import torch as d2l
-import collections
+
+
 #
 # d2l.DATA_HUB['ptb'] = (d2l.DATA_URL + 'ptb.zip',
 #                        '319d85e578af0cdc590547f26231e4e31cdf1e42')
@@ -18,6 +20,7 @@ def read_ptb():
     with open('../data/ptb/ptb.train.txt') as f:
         raw_text = f.read()
     return [line.split() for line in raw_text.split('\n')]
+
 
 sentences = read_ptb()
 print(f'# sentences数: {len(sentences)}')
@@ -33,8 +36,10 @@ def count_corpus(tokens):
         tokens = [token for line in tokens for token in line]
     return collections.Counter(tokens)
 
+
 class Vocab:
     """Vocabulary for text."""
+
     def __init__(self, tokens=None, min_freq=0, reserved_tokens=None):
         """Defined in :numref:`sec_text_preprocessing`"""
         if tokens is None:
@@ -76,8 +81,10 @@ class Vocab:
     def token_freqs(self):  # Index for the unknown token
         return self._token_freqs
 
+
 vocab = Vocab(sentences, min_freq=10)
 print(f'vocab size: {len(vocab)}')
+
 
 def subsample(sentences, vocab):
     """下采样高频词"""
@@ -88,21 +95,25 @@ def subsample(sentences, vocab):
 
     # 如果在下采样期间保留词元，则返回True
     def keep(token):
-        return(random.uniform(0, 1) < math.sqrt(1e-4 / counter[token] * num_tokens))
+        return (random.uniform(0, 1) < math.sqrt(1e-4 / counter[token] * num_tokens))
 
     return ([[token for token in line if keep(token)] for line in sentences], counter)
 
+
 subsampled, counter = subsample(sentences, vocab)
+
 
 def compare_counts(token):
     return (f'"{token}"的数量：'
             f'之前={sum([l.count(token) for l in sentences])}, '
             f'之后={sum([l.count(token) for l in subsampled])}')
 
+
 print(compare_counts('the'))
 print(compare_counts('join'))
 corpus = [vocab[line] for line in subsampled]
 print(corpus[:3])
+
 
 def get_centers_and_contexts(corpus, max_window_size):
     """返回跳元模型中的中心词和上下文词"""
@@ -121,6 +132,7 @@ def get_centers_and_contexts(corpus, max_window_size):
             contexts.append([line[idx] for idx in indices])
     return centers, contexts
 
+
 tiny_dataset = [list(range(7)), list(range(7, 10))]
 print('数据集', tiny_dataset)
 for center, context in zip(*get_centers_and_contexts(tiny_dataset, 2)):
@@ -129,9 +141,11 @@ for center, context in zip(*get_centers_and_contexts(tiny_dataset, 2)):
 all_centers, all_contexts = get_centers_and_contexts(corpus, 5)
 print(f'# “中心词-上下文词对”的数量: {sum([len(contexts) for contexts in all_contexts])}')
 
-#@save
+
+# @save
 class RandomGenerator:
     """根据n个采样权重在{1,...,n}中随机抽取"""
+
     def __init__(self, sampling_weights):
         # Exclude
         self.population = list(range(1, len(sampling_weights) + 1))
@@ -148,7 +162,8 @@ class RandomGenerator:
         self.i += 1
         return self.candidates[self.i - 1]
 
-#@save
+
+# @save
 generator = RandomGenerator([2, 3, 4])
 print([generator.draw() for _ in range(10)])
 
@@ -156,7 +171,7 @@ print([generator.draw() for _ in range(10)])
 def get_negatives(all_contexts, vocab, counter, K):
     """返回负采样中的噪声词"""
     # 索引为1、2、...（索引0是词表中排除的未知标记）
-    sampling_weights = [counter[vocab.to_tokens(i)]**0.75
+    sampling_weights = [counter[vocab.to_tokens(i)] ** 0.75
                         for i in range(1, len(vocab))]
     all_negatives, generator = [], RandomGenerator(sampling_weights)
     for contexts in all_contexts:
@@ -168,6 +183,7 @@ def get_negatives(all_contexts, vocab, counter, K):
                 negatives.append(neg)
         all_negatives.append(negatives)
     return all_negatives
+
 
 all_negatives = get_negatives(all_contexts, vocab, counter, 5)
 
@@ -186,6 +202,7 @@ def batchify(data):
     return (torch.tensor(centers).reshape((-1, 1)), torch.tensor(
         contexts_negatives), torch.tensor(masks), torch.tensor(labels))
 
+
 x_1 = (1, [2, 2], [3, 3, 3, 3])
 x_2 = (1, [2, 2, 2], [3, 3])
 batch = batchify((x_1, x_2))
@@ -199,7 +216,9 @@ def get_dataloader_workers():
     """Use 4 processes to read the data.
 
     Defined in :numref:`sec_fashion_mnist`"""
-    return 4
+    return 0
+
+
 def load_data_ptb(batch_size, max_window_size, num_noise_words):
     """下载PTB数据集，然后将其加载到内存中"""
     num_workers = get_dataloader_workers()
