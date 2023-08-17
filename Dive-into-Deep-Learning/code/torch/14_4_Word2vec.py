@@ -1,28 +1,84 @@
 # 预训练word2vec
 
+import collections
 import math
-import torch
-from torch import nn
-from d2l import torch as d2l
-import random
-import os
 import random
 
+import torch
+from d2l import torch as d2l
+from torch import nn
 
 
 def read_ptb():
     """将PTB数据集加载到文本行的列表中"""
-    data_dir = d2l.download_extract('ptb')
+    # data_dir = d2l.download_extract('ptb')
     # Readthetrainingset.
-    with open(os.path.join(data_dir, 'ptb.train.txt')) as f:
+    with open('../data/ptb/ptb.train.txt') as f:
         raw_text = f.read()
     return [line.split() for line in raw_text.split('\n')]
+
+
+def count_corpus(tokens):
+    """Count token frequencies.
+
+    Defined in :numref:`sec_text_preprocessing`"""
+    # Here `tokens` is a 1D list or 2D list
+    if len(tokens) == 0 or isinstance(tokens[0], list):
+        # Flatten a list of token lists into a list of tokens
+        tokens = [token for line in tokens for token in line]
+    return collections.Counter(tokens)
+
+
+class Vocab:
+    """Vocabulary for text."""
+
+    def __init__(self, tokens=None, min_freq=0, reserved_tokens=None):
+        """Defined in :numref:`sec_text_preprocessing`"""
+        if tokens is None:
+            tokens = []
+        if reserved_tokens is None:
+            reserved_tokens = []
+        # Sort according to frequencies
+        counter = count_corpus(tokens)
+        self._token_freqs = sorted(counter.items(), key=lambda x: x[1], reverse=True)
+        # The index for the unknown token is 0
+        self.idx_to_token = ['<unk>'] + reserved_tokens
+        self.token_to_idx = {token: idx
+                             for idx, token in enumerate(self.idx_to_token)}
+        for token, freq in self._token_freqs:
+            if freq < min_freq:
+                break
+            if token not in self.token_to_idx:
+                self.idx_to_token.append(token)
+                self.token_to_idx[token] = len(self.idx_to_token) - 1
+
+    def __len__(self):
+        return len(self.idx_to_token)
+
+    def __getitem__(self, tokens):
+        if not isinstance(tokens, (list, tuple)):
+            return self.token_to_idx.get(tokens, self.unk)
+        return [self.__getitem__(token) for token in tokens]
+
+    def to_tokens(self, indices):
+        if not isinstance(indices, (list, tuple)):
+            return self.idx_to_token[indices]
+        return [self.idx_to_token[index] for index in indices]
+
+    @property
+    def unk(self):  # Index for the unknown token
+        return 0
+
+    @property
+    def token_freqs(self):  # Index for the unknown token
+        return self._token_freqs
+
 
 def subsample(sentences, vocab):
     """下采样高频词"""
     # 排除未知词元'<unk>'
     sentences = [[token for token in line if vocab[token] != vocab.unk] for line in sentences]
-    counter = d2l.count_corpus(sentences)
+    counter = count_corpus(sentences)
     num_tokens = sum(counter.values())
 
     # 如果在下采样期间保留词元，则返回True
@@ -102,9 +158,9 @@ def batchify(data):
 
 def load_data_ptb(batch_size, max_window_size, num_noise_words):
     """下载PTB数据集，然后将其加载到内存中"""
-    num_workers = d2l.get_dataloader_workers()
+    num_workers = 0
     sentences = read_ptb()
-    vocab = d2l.Vocab(sentences, min_freq=10)
+    vocab = Vocab(sentences, min_freq=10)
     subsampled, counter = subsample(sentences, vocab)
     corpus = [vocab[line] for line in subsampled]
     all_centers, all_contexts = get_centers_and_contexts(
@@ -133,12 +189,14 @@ def load_data_ptb(batch_size, max_window_size, num_noise_words):
         collate_fn=batchify, num_workers=num_workers)
     return data_iter, vocab
 
+
 batch_size, max_window_size, num_noise_words = 512, 5, 5
 # data_iter, vocab = d2l.load_data_ptb(batch_size, max_window_size, num_noise_words)
 data_iter, vocab = load_data_ptb(512, 5, 5)
 
 embed = nn.Embedding(num_embeddings=20, embedding_dim=4)
 print(f'Parameter embedding_weight ({embed.weight.shape}, 'f'dtype={embed.weight.dtype})')
+
 x = torch.tensor([[1, 2, 3], [4, 5, 6]])
 embed(x)
 
@@ -148,8 +206,8 @@ def skip_gram(center, contexts_and_negatives, embed_v, embed_u):
     pred = torch.bmm(v, u.permute(0, 2, 1))
     return pred
 
-skip_gram(torch.ones((2, 1), dtype=torch.long),
-          torch.ones((2, 4), dtype=torch.long), embed, embed).shape
+print(skip_gram(torch.ones((2, 1), dtype=torch.long),
+          torch.ones((2, 4), dtype=torch.long), embed, embed).shape)
 
 class SigmoidBCELoss(nn.Module):
     # 带掩码的二元交叉熵损失
@@ -179,40 +237,40 @@ net = nn.Sequential(nn.Embedding(num_embeddings=len(vocab),
                                  embedding_dim=embed_size),
                     nn.Embedding(num_embeddings=len(vocab),
                                  embedding_dim=embed_size))
-#
-# def train(net, data_iter, lr, num_epochs, device=d2l.try_gpu()):
-#     def init_weights(m):
-#         if type(m) == nn.Embedding:
-#             nn.init.xavier_uniform_(m.weight)
-#     net.apply(init_weights)
-#     net = net.to(device)
-#     optimizer = torch.optim.Adam(net.parameters(), lr=lr)
-#     animator = d2l.Animator(xlabel='epoch', ylabel='loss',
-#                             xlim=[1, num_epochs])
-#     # 规范化的损失之和，规范化的损失数
-#     metric = d2l.Accumulator(2)
-#     for epoch in range(num_epochs):
-#         timer, num_batches = d2l.Timer(), len(data_iter)
-#         for i, batch in enumerate(data_iter):
-#             optimizer.zero_grad()
-#             center, context_negative, mask, label = [
-#                 data.to(device) for data in batch]
-#
-#             pred = skip_gram(center, context_negative, net[0], net[1])
-#             l = (loss(pred.reshape(label.shape).float(), label.float(), mask)
-#                      / mask.sum(axis=1) * mask.shape[1])
-#             l.sum().backward()
-#             optimizer.step()
-#             metric.add(l.sum(), l.numel())
-#             if (i + 1) % (num_batches // 5) == 0 or i == num_batches - 1:
-#                 animator.add(epoch + (i + 1) / num_batches,
-#                              (metric[0] / metric[1],))
-#     print(f'loss {metric[0] / metric[1]:.3f}, '
-#           f'{metric[1] / timer.stop():.1f} tokens/sec on {str(device)}')
-#
-#
-# lr, num_epochs = 0.002, 5
-# train(net, data_iter, lr, num_epochs)
+
+def train(net, data_iter, lr, num_epochs, device=d2l.try_gpu()):
+    def init_weights(m):
+        if type(m) == nn.Embedding:
+            nn.init.xavier_uniform_(m.weight)
+    net.apply(init_weights)
+    net = net.to(device)
+    optimizer = torch.optim.Adam(net.parameters(), lr=lr)
+    animator = d2l.Animator(xlabel='epoch', ylabel='loss',
+                            xlim=[1, num_epochs])
+    # 规范化的损失之和，规范化的损失数
+    metric = d2l.Accumulator(2)
+    for epoch in range(num_epochs):
+        timer, num_batches = d2l.Timer(), len(data_iter)
+        for i, batch in enumerate(data_iter):
+            optimizer.zero_grad()
+            center, context_negative, mask, label = [
+                data.to(device) for data in batch]
+
+            pred = skip_gram(center, context_negative, net[0], net[1])
+            l = (loss(pred.reshape(label.shape).float(), label.float(), mask)
+                     / mask.sum(axis=1) * mask.shape[1])
+            l.sum().backward()
+            optimizer.step()
+            metric.add(l.sum(), l.numel())
+            if (i + 1) % (num_batches // 5) == 0 or i == num_batches - 1:
+                animator.add(epoch + (i + 1) / num_batches,
+                             (metric[0] / metric[1],))
+    print(f'loss {metric[0] / metric[1]:.3f}, '
+          f'{metric[1] / timer.stop():.1f} tokens/sec on {str(device)}')
+
+
+lr, num_epochs = 0.002, 5
+print(train(net, data_iter, lr, num_epochs))
 
 def get_similar_tokens(query_token, k, embed):
     W = embed.weight.data
