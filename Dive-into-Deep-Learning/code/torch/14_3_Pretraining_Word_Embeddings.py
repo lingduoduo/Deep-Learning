@@ -5,26 +5,80 @@ import os
 import random
 import torch
 from d2l import torch as d2l
-
-d2l.DATA_HUB['ptb'] = (d2l.DATA_URL + 'ptb.zip', '319d85e578af0cdc590547f26231e4e31cdf1e42')
-
-#@save
+import collections
+#
+# d2l.DATA_HUB['ptb'] = (d2l.DATA_URL + 'ptb.zip',
+#                        '319d85e578af0cdc590547f26231e4e31cdf1e42')
+#
+# #@save
 def read_ptb():
     """将PTB数据集加载到文本行的列表中"""
-    data_dir = d2l.download_extract('ptb')
+    # data_dir = d2l.download_extract('ptb')
     # Readthetrainingset.
-    with open(os.path.join(data_dir, 'ptb.train.txt')) as f:
+    with open('../data/ptb/ptb.train.txt') as f:
         raw_text = f.read()
     return [line.split() for line in raw_text.split('\n')]
 
 sentences = read_ptb()
 print(f'# sentences数: {len(sentences)}')
 
-vocab = d2l.Vocab(sentences, min_freq=10)
+
+def count_corpus(tokens):
+    """Count token frequencies.
+
+    Defined in :numref:`sec_text_preprocessing`"""
+    # Here `tokens` is a 1D list or 2D list
+    if len(tokens) == 0 or isinstance(tokens[0], list):
+        # Flatten a list of token lists into a list of tokens
+        tokens = [token for line in tokens for token in line]
+    return collections.Counter(tokens)
+
+class Vocab:
+    """Vocabulary for text."""
+    def __init__(self, tokens=None, min_freq=0, reserved_tokens=None):
+        """Defined in :numref:`sec_text_preprocessing`"""
+        if tokens is None:
+            tokens = []
+        if reserved_tokens is None:
+            reserved_tokens = []
+        # Sort according to frequencies
+        counter = count_corpus(tokens)
+        self._token_freqs = sorted(counter.items(), key=lambda x: x[1], reverse=True)
+        # The index for the unknown token is 0
+        self.idx_to_token = ['<unk>'] + reserved_tokens
+        self.token_to_idx = {token: idx
+                             for idx, token in enumerate(self.idx_to_token)}
+        for token, freq in self._token_freqs:
+            if freq < min_freq:
+                break
+            if token not in self.token_to_idx:
+                self.idx_to_token.append(token)
+                self.token_to_idx[token] = len(self.idx_to_token) - 1
+
+    def __len__(self):
+        return len(self.idx_to_token)
+
+    def __getitem__(self, tokens):
+        if not isinstance(tokens, (list, tuple)):
+            return self.token_to_idx.get(tokens, self.unk)
+        return [self.__getitem__(token) for token in tokens]
+
+    def to_tokens(self, indices):
+        if not isinstance(indices, (list, tuple)):
+            return self.idx_to_token[indices]
+        return [self.idx_to_token[index] for index in indices]
+
+    @property
+    def unk(self):  # Index for the unknown token
+        return 0
+
+    @property
+    def token_freqs(self):  # Index for the unknown token
+        return self._token_freqs
+
+vocab = Vocab(sentences, min_freq=10)
 print(f'vocab size: {len(vocab)}')
 
-
-#@save
 def subsample(sentences, vocab):
     """下采样高频词"""
     # 排除未知词元'<unk>'
@@ -40,11 +94,6 @@ def subsample(sentences, vocab):
 
 subsampled, counter = subsample(sentences, vocab)
 
-d2l.show_list_len_pair_hist(
-    ['origin', 'subsampled'], '# tokens per sentence',
-    'count', sentences, subsampled);
-
-
 def compare_counts(token):
     return (f'"{token}"的数量：'
             f'之前={sum([l.count(token) for l in sentences])}, '
@@ -52,12 +101,9 @@ def compare_counts(token):
 
 print(compare_counts('the'))
 print(compare_counts('join'))
-
 corpus = [vocab[line] for line in subsampled]
 print(corpus[:3])
 
-
-#@save
 def get_centers_and_contexts(corpus, max_window_size):
     """返回跳元模型中的中心词和上下文词"""
     centers, contexts = [], []
@@ -104,10 +150,9 @@ class RandomGenerator:
 
 #@save
 generator = RandomGenerator([2, 3, 4])
-[generator.draw() for _ in range(10)]
+print([generator.draw() for _ in range(10)])
 
 
-#@save
 def get_negatives(all_contexts, vocab, counter, K):
     """返回负采样中的噪声词"""
     # 索引为1、2、...（索引0是词表中排除的未知标记）
@@ -127,7 +172,6 @@ def get_negatives(all_contexts, vocab, counter, K):
 all_negatives = get_negatives(all_contexts, vocab, counter, 5)
 
 
-#@save
 def batchify(data):
     """返回带有负采样的跳元模型的小批量样本"""
     max_len = max(len(c) + len(n) for _, c, n in data)
@@ -150,11 +194,17 @@ names = ['centers', 'contexts_negatives', 'masks', 'labels']
 for name, data in zip(names, batch):
     print(name, '=', data)
 
+
+def get_dataloader_workers():
+    """Use 4 processes to read the data.
+
+    Defined in :numref:`sec_fashion_mnist`"""
+    return 4
 def load_data_ptb(batch_size, max_window_size, num_noise_words):
     """下载PTB数据集，然后将其加载到内存中"""
-    num_workers = d2l.get_dataloader_workers()
+    num_workers = get_dataloader_workers()
     sentences = read_ptb()
-    vocab = d2l.Vocab(sentences, min_freq=10)
+    vocab = Vocab(sentences, min_freq=10)
     subsampled, counter = subsample(sentences, vocab)
     corpus = [vocab[line] for line in subsampled]
     all_centers, all_contexts = get_centers_and_contexts(
@@ -189,3 +239,6 @@ for batch in data_iter:
     for name, data in zip(names, batch):
         print(name, 'shape:', data.shape)
     break
+
+# 高频词在训练中可能不是那么有用。我们可以对他们进行下采样，以便在训练中加快速度。
+# 为了提高计算效率，我们以小批量方式加载样本。我们可以定义其他变量来区分填充标记和非填充标记，以及正例和负例。
