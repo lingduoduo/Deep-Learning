@@ -1,11 +1,10 @@
+import time
+
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 from d2l import tensorflow as d2l
-import time
-import os
-import hashlib
-import requests
+
 
 def transpose_qkv(X, num_heads):
     """Transposition for parallel computation of multiple attention heads.
@@ -40,6 +39,7 @@ def transpose_output(X, num_heads):
 
 class PositionWiseFFN(tf.keras.layers.Layer):
     """基于位置的前馈网络"""
+
     def __init__(self, ffn_num_hiddens, ffn_num_outputs, **kwargs):
         super().__init__(*kwargs)
         self.dense1 = tf.keras.layers.Dense(ffn_num_hiddens)
@@ -49,9 +49,9 @@ class PositionWiseFFN(tf.keras.layers.Layer):
     def call(self, X):
         return self.dense2(self.relu(self.dense1(X)))
 
+
 ffn = PositionWiseFFN(4, 8)
 print(ffn(tf.ones((2, 3, 4)))[0])
-
 
 ln = tf.keras.layers.LayerNormalization()
 bn = tf.keras.layers.BatchNormalization()
@@ -61,6 +61,7 @@ print('layer norm:', ln(X), '\nbatch norm:', bn(X, training=True))
 
 class AddNorm(tf.keras.layers.Layer):
     """残差连接后进行层规范化"""
+
     def __init__(self, normalized_shape, dropout, **kwargs):
         super().__init__(**kwargs)
         self.dropout = tf.keras.layers.Dropout(dropout)
@@ -80,12 +81,13 @@ def sequence_mask(X, valid_len, value=0):
     Defined in :numref:`sec_seq2seq_decoder`"""
     maxlen = X.shape[1]
     mask = tf.range(start=0, limit=maxlen, dtype=tf.float32)[
-        None, :] < tf.cast(valid_len[:, None], dtype=tf.float32)
+           None, :] < tf.cast(valid_len[:, None], dtype=tf.float32)
 
     if len(X.shape) == 3:
         return tf.where(tf.expand_dims(mask, axis=-1), X, value)
     else:
         return tf.where(mask, X, value)
+
 
 def masked_softmax(X, valid_lens):
     """Perform softmax operation by masking elements on the last axis.
@@ -106,10 +108,12 @@ def masked_softmax(X, valid_lens):
         X = sequence_mask(tf.reshape(X, shape=(-1, shape[-1])), valid_lens, value=-1e6)
         return tf.nn.softmax(tf.reshape(X, shape=shape), axis=-1)
 
+
 class DotProductAttention(tf.keras.layers.Layer):
     """Scaled dot product attention.
 
     Defined in :numref:`subsec_additive-attention`"""
+
     def __init__(self, dropout, **kwargs):
         super().__init__(**kwargs)
         self.dropout = tf.keras.layers.Dropout(dropout)
@@ -121,15 +125,17 @@ class DotProductAttention(tf.keras.layers.Layer):
     # Shape of `valid_lens`: (`batch_size`,) or (`batch_size`, no. of queries)
     def call(self, queries, keys, values, valid_lens, **kwargs):
         d = queries.shape[-1]
-        scores = tf.matmul(queries, keys, transpose_b=True)/tf.math.sqrt(
+        scores = tf.matmul(queries, keys, transpose_b=True) / tf.math.sqrt(
             tf.cast(d, dtype=tf.float32))
         self.attention_weights = masked_softmax(scores, valid_lens)
         return tf.matmul(self.dropout(self.attention_weights, **kwargs), values)
+
 
 class MultiHeadAttention(tf.keras.layers.Layer):
     """Multi-head attention.
 
     Defined in :numref:`sec_multihead-attention`"""
+
     def __init__(self, key_size, query_size, value_size, num_hiddens,
                  num_heads, dropout, bias=False, **kwargs):
         super().__init__(**kwargs)
@@ -167,11 +173,12 @@ class MultiHeadAttention(tf.keras.layers.Layer):
 
 class EncoderBlock(tf.keras.layers.Layer):
     """Transformer编码器块"""
+
     def __init__(self, key_size, query_size, value_size, num_hiddens,
                  norm_shape, ffn_num_hiddens, num_heads, dropout, bias=False, **kwargs):
         super().__init__(**kwargs)
         self.attention = MultiHeadAttention(key_size, query_size, value_size, num_hiddens,
-                                                num_heads, dropout, bias)
+                                            num_heads, dropout, bias)
         self.addnorm1 = AddNorm(norm_shape, dropout)
         self.ffn = PositionWiseFFN(ffn_num_hiddens, num_hiddens)
         self.addnorm2 = AddNorm(norm_shape, dropout)
@@ -179,6 +186,7 @@ class EncoderBlock(tf.keras.layers.Layer):
     def call(self, X, valid_lens, **kwargs):
         Y = self.addnorm1(X, self.attention(X, X, X, valid_lens, **kwargs), **kwargs)
         return self.addnorm2(Y, self.ffn(Y), **kwargs)
+
 
 X = tf.ones((2, 100, 24))
 valid_lens = tf.constant([3, 2])
@@ -191,13 +199,14 @@ class PositionalEncoding(tf.keras.layers.Layer):
     """Positional encoding.
 
     Defined in :numref:`sec_self-attention-and-positional-encoding`"""
+
     def __init__(self, num_hiddens, dropout, max_len=1000):
         super().__init__()
         self.dropout = tf.keras.layers.Dropout(dropout)
         # Create a long enough `P`
         self.P = np.zeros((1, max_len, num_hiddens))
         X = np.arange(max_len, dtype=np.float32).reshape(
-            -1,1)/np.power(10000, np.arange(
+            -1, 1) / np.power(10000, np.arange(
             0, num_hiddens, 2, dtype=np.float32) / num_hiddens)
         self.P[:, :, 0::2] = np.sin(X)
         self.P[:, :, 1::2] = np.cos(X)
@@ -206,16 +215,20 @@ class PositionalEncoding(tf.keras.layers.Layer):
         X = X + self.P[:, :X.shape[1], :]
         return self.dropout(X, **kwargs)
 
+
 class Encoder(tf.keras.layers.Layer):
     """The base encoder interface for the encoder-decoder architecture."""
+
     def __init__(self, **kwargs):
         super(Encoder, self).__init__(**kwargs)
 
     def call(self, X, *args, **kwargs):
         raise NotImplementedError
 
+
 class TransformerEncoder(Encoder):
     """Transformer编码器"""
+
     def __init__(self, vocab_size, key_size, query_size, value_size,
                  num_hiddens, norm_shape, ffn_num_hiddens, num_heads,
                  num_layers, dropout, bias=False, **kwargs):
@@ -241,12 +254,14 @@ class TransformerEncoder(Encoder):
                 i] = blk.attention.attention.attention_weights
         return X
 
+
 encoder = TransformerEncoder(200, 24, 24, 24, 24, [1, 2], 48, 8, 2, 0.5)
 print(encoder(tf.ones((2, 100)), valid_lens, training=False).shape)
 
 
 class DecoderBlock(tf.keras.layers.Layer):
     """解码器中第i个块"""
+
     def __init__(self, key_size, query_size, value_size, num_hiddens,
                  norm_shape, ffn_num_hiddens, num_heads, dropout, i, **kwargs):
         super().__init__(**kwargs)
@@ -271,10 +286,10 @@ class DecoderBlock(tf.keras.layers.Layer):
         state[2][self.i] = key_values
         if kwargs["training"]:
             batch_size, num_steps, _ = X.shape
-           # dec_valid_lens的开头:(batch_size,num_steps),
+            # dec_valid_lens的开头:(batch_size,num_steps),
             # 其中每一行是[1,2,...,num_steps]
             dec_valid_lens = tf.repeat(tf.reshape(tf.range(1, num_steps + 1),
-                                                 shape=(-1, num_steps)), repeats=batch_size, axis=0)
+                                                  shape=(-1, num_steps)), repeats=batch_size, axis=0)
 
         else:
             dec_valid_lens = None
@@ -294,10 +309,12 @@ X = tf.ones((2, 100, 24))
 state = [encoder_blk(X, valid_lens), valid_lens, [None]]
 print(decoder_blk(X, state, training=False)[0].shape)
 
+
 class Decoder(tf.keras.layers.Layer):
     """The base decoder interface for the encoder-decoder architecture.
 
     Defined in :numref:`sec_encoder-decoder`"""
+
     def __init__(self, **kwargs):
         super(Decoder, self).__init__(**kwargs)
 
@@ -307,16 +324,19 @@ class Decoder(tf.keras.layers.Layer):
     def call(self, X, state, **kwargs):
         raise NotImplementedError
 
+
 class AttentionDecoder(Decoder):
     """The base attention-based decoder interface.
 
     Defined in :numref:`sec_seq2seq_attention`"""
+
     def __init__(self, **kwargs):
         super(AttentionDecoder, self).__init__(**kwargs)
 
     @property
     def attention_weights(self):
         raise NotImplementedError
+
 
 class TransformerDecoder(AttentionDecoder):
     def __init__(self, vocab_size, key_size, query_size, value_size,
@@ -360,6 +380,7 @@ class EncoderDecoder(tf.keras.Model):
     """The base class for the encoder-decoder architecture.
 
     Defined in :numref:`sec_encoder-decoder`"""
+
     def __init__(self, encoder, decoder, **kwargs):
         super(EncoderDecoder, self).__init__(**kwargs)
         self.encoder = encoder
@@ -375,6 +396,7 @@ class MaskedSoftmaxCELoss(tf.keras.losses.Loss):
     """The softmax cross-entropy loss with masks.
 
     Defined in :numref:`sec_seq2seq_decoder`"""
+
     def __init__(self, valid_len):
         super().__init__(reduction='none')
         self.valid_len = valid_len
@@ -388,12 +410,13 @@ class MaskedSoftmaxCELoss(tf.keras.losses.Loss):
         label_one_hot = tf.one_hot(label, depth=pred.shape[-1])
         unweighted_loss = tf.keras.losses.CategoricalCrossentropy(
             from_logits=True, reduction='none')(label_one_hot, pred)
-        weighted_loss = tf.reduce_mean((unweighted_loss*weights), axis=1)
+        weighted_loss = tf.reduce_mean((unweighted_loss * weights), axis=1)
         return weighted_loss
 
 
 class Timer:
     """Record multiple running times."""
+
     def __init__(self):
         """Defined in :numref:`subsec_linear_model`"""
         self.times = []
@@ -420,8 +443,10 @@ class Timer:
         """Return the accumulated time."""
         return np.array(self.times).cumsum().tolist()
 
+
 class Accumulator:
     """For accumulating sums over `n` variables."""
+
     def __init__(self, n):
         """Defined in :numref:`sec_softmax_scratch`"""
         self.data = [0.0] * n
@@ -448,7 +473,7 @@ def grad_clipping(grads, theta):
         else:
             new_grad.append(grad)
     norm = tf.math.sqrt(sum((tf.reduce_sum(grad ** 2)).numpy()
-                        for grad in new_grad))
+                            for grad in new_grad))
     norm = tf.cast(norm, tf.float32)
     if tf.greater(norm, theta):
         for i, grad in enumerate(new_grad):
@@ -482,6 +507,7 @@ def train_seq2seq(net, data_iter, lr, num_epochs, tgt_vocab, device):
     print(f'loss {metric[0] / metric[1]:.3f}, {metric[1] / timer.stop():.1f} '
           f'tokens/sec on {str(device)}')
 
+
 def truncate_pad(line, num_steps, padding_token):
     """Truncate or pad sequences.
 
@@ -489,6 +515,8 @@ def truncate_pad(line, num_steps, padding_token):
     if len(line) > num_steps:
         return line[:num_steps]  # Truncate
     return line + [padding_token] * (num_steps - len(line))  # Pad
+
+
 def predict_seq2seq(net, src_sentence, src_vocab, tgt_vocab, num_steps,
                     save_attention_weights=False):
     """Predict for sequence to sequence.
@@ -519,12 +547,14 @@ def predict_seq2seq(net, src_sentence, src_vocab, tgt_vocab, num_steps,
         if pred == tgt_vocab['<eos>']:
             break
         output_seq.append(pred.numpy())
-    return ' '.join(tgt_vocab.to_tokens(tf.reshape(output_seq, shape = -1).numpy().tolist())), attention_weight_seq
+    return ' '.join(tgt_vocab.to_tokens(tf.reshape(output_seq, shape=-1).numpy().tolist())), attention_weight_seq
+
 
 def preprocess_nmt(text):
     """Preprocess the English-French dataset.
 
     Defined in :numref:`sec_machine_translation`"""
+
     def no_space(char, prev_char):
         return char in set(',.!?') and prev_char != ' '
 
@@ -536,6 +566,7 @@ def preprocess_nmt(text):
            for i, char in enumerate(text)]
     return ''.join(out)
 
+
 def read_data_nmt():
     """Load the English-French dataset.
 
@@ -543,6 +574,7 @@ def read_data_nmt():
     # data_dir = d2l.download_extract('fra-eng')
     with open('../data/fra-eng/fra.txt', 'r') as f:
         return f.read()
+
 
 def tokenize_nmt(text, num_examples=None):
     """Tokenize the English-French dataset.
@@ -558,6 +590,7 @@ def tokenize_nmt(text, num_examples=None):
             target.append(parts[1].split(' '))
     return source, target
 
+
 def build_array_nmt(lines, vocab, num_steps):
     """Transform text sequences of machine translation into minibatches.
 
@@ -570,6 +603,7 @@ def build_array_nmt(lines, vocab, num_steps):
         tf.cast(array != vocab['<pad>'], tf.int32), 1)
     return array, valid_len
 
+
 def count_corpus(tokens):
     """Count token frequencies.
 
@@ -579,8 +613,11 @@ def count_corpus(tokens):
         # Flatten a list of token lists into a list of tokens
         tokens = [token for line in tokens for token in line]
     return collections.Counter(tokens)
+
+
 class Vocab:
     """Vocabulary for text."""
+
     def __init__(self, tokens=None, min_freq=0, reserved_tokens=None):
         """Defined in :numref:`sec_text_preprocessing`"""
         if tokens is None:
@@ -623,6 +660,7 @@ class Vocab:
     def token_freqs(self):  # Index for the unknown token
         return self._token_freqs
 
+
 def load_array(data_arrays, batch_size, is_train=True):
     """Construct a TensorFlow data iterator.
 
@@ -632,6 +670,8 @@ def load_array(data_arrays, batch_size, is_train=True):
         dataset = dataset.shuffle(buffer_size=1000)
     dataset = dataset.batch(batch_size)
     return dataset
+
+
 def load_data_nmt(batch_size, num_steps, num_examples=600):
     """Return the iterator and the vocabularies of the translation dataset.
 
@@ -639,9 +679,9 @@ def load_data_nmt(batch_size, num_steps, num_examples=600):
     text = preprocess_nmt(read_data_nmt())
     source, target = tokenize_nmt(text, num_examples)
     src_vocab = Vocab(source, min_freq=2,
-                          reserved_tokens=['<pad>', '<bos>', '<eos>'])
+                      reserved_tokens=['<pad>', '<bos>', '<eos>'])
     tgt_vocab = Vocab(target, min_freq=2,
-                          reserved_tokens=['<pad>', '<bos>', '<eos>'])
+                      reserved_tokens=['<pad>', '<bos>', '<eos>'])
     src_array, src_valid_len = build_array_nmt(source, src_vocab, num_steps)
     tgt_array, tgt_valid_len = build_array_nmt(target, tgt_vocab, num_steps)
     data_arrays = (src_array, src_valid_len, tgt_array, tgt_valid_len)
@@ -672,7 +712,6 @@ enc_attention_weights = tf.reshape(
     (num_layers, num_heads, -1, num_steps))
 print(enc_attention_weights.shape)
 
-
 dec_attention_weights_2d = [head[0] for step in dec_attention_weight_seq
                             for attn in step
                             for blk in attn for head in blk]
@@ -684,4 +723,3 @@ dec_attention_weights = tf.reshape(dec_attention_weights_filled, shape=(
 dec_self_attention_weights, dec_inter_attention_weights = tf.transpose(
     dec_attention_weights, perm=(1, 2, 3, 0, 4))
 print(dec_self_attention_weights.shape, dec_inter_attention_weights.shape)
-
