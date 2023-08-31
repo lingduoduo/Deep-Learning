@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from d2l import torch as d2l
+
 
 d2l.DATA_HUB['ml-100k'] = (
     'https://files.grouplens.org/datasets/movielens/ml-100k.zip',
