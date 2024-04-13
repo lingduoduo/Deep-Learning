@@ -25,8 +25,3 @@ a = torch.randint(0, 10, [2, 10])
 print(a)
 print(torch.bincount(a))
 
-#统计某一类别样本的个数
-
-
-
-

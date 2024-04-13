@@ -55,8 +55,7 @@ testloader = torch.utils.data.DataLoader(testset,
                                          batch_size=100,
                                          shuffle=False, num_workers=2)
 # Cifar-10的标签
-classes = ('plane', 'car', 'bird', 'cat', 'deer',
-           'dog', 'frog', 'horse', 'ship', 'truck')
+classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
 # 模型定义-ResNet
 net = ResNet18().to(device)
