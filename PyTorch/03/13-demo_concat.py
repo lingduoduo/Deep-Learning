@@ -21,12 +21,3 @@ print(out.shape)
 
 print(out[:, :, 0])
 print(out[:, :, 1])
-
-
-
-
-
-
-
-
-
