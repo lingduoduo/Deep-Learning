@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 a = torch.Tensor([[1, 2],[3, 4]])
 print(a)
