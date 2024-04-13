@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 a = torch.rand(2, 3)
 b = torch.rand(2, 3)
@@ -41,7 +42,7 @@ print(torch.isfinite(a/0))
 print(torch.isinf(a/0))
 print(torch.isnan(a))
 
-import numpy as np
+
 a = torch.tensor([1, 2, np.nan])
 print(torch.isnan(a))
 
@@ -49,5 +50,4 @@ a = torch.rand(2, 3)
 print(a)
 print(torch.topk(a, k=2, dim=1, largest=False))
 print(torch.topk(a, k=2, dim=1, largest=True))
-
 
