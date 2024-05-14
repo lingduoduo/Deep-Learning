@@ -1,6 +1,17 @@
 import torch
 import numpy as np
 
+# torch.tensor() is a class constructor that creates a tensor from a list or a NumPy array.
+# The tensor data type is inferred from the input data type.
+list_data = [1, 2, 3, 4]
+tensor_from_list = torch.tensor(list_data)
+print(tensor_from_list) # tensor([1, 2, 3, 4])
+
+# torch.tensor() can also create a tensor from a NumPy array.
+np_array = np.array([1, 2, 3])
+tensor_from_np_tensor = torch.tensor(np_array)
+print(tensor_from_np_tensor) # tensor([1, 2, 3], dtype=torch.int32)
+
 a = torch.Tensor([[1, 2],[3, 4]])
 print(a)
 print(a.type)
