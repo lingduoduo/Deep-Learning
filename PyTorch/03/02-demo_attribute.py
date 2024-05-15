@@ -39,3 +39,7 @@ print(expanded_tensor)
 # reshape(shape) reshpe the tensor to the given shape
 reshaped_tensor = tensor.reshape(6)  # new shape = [6]
 print(reshaped_tensor)
+
+# transpose(dim0, dim1) change two dimentions of the tensor
+transposed_tensor = tensor.transpose(0, 1)  # new shape = [3, 2]
+

@@ -24,6 +24,8 @@ d = torch.tensor(((1, 2), (3, 4)))
 print(d.type())
 print(d.type_as(a))
 
+
+# torch.zeros(shape)和torch.ones(shape) create tensors with all elements set to 0 or 1, respectively.
 d = torch.empty(2,3)
 print(d.type())
 print(d.type_as(a))
@@ -48,11 +50,8 @@ d = torch.ones_like(d)
 print(d.type())
 print(d.type_as(a))
 
+# torch.rand(shape)：create a tensor with elements randomly sampled from a uniform distribution over [0, 1).
 d = torch.rand(2, 3)
-print(d.type())
-print(d.type_as(a))
-
-d = torch.arange(2, 10, 2)
 print(d.type())
 print(d.type_as(a))
 
@@ -75,4 +74,10 @@ print(d.type_as(a))
 d = torch.randperm(10)
 print(d.type())
 print(d.type_as(a))
+
+# torch.arange(start, end=None, step=1, dtype=None, layout=torch.strided, device=None, requires_grad=False)：create a 1-D tensor of size end-start/step.
+d = torch.arange(2, 10, 2)
+print(d.type())
+print(d.type_as(a))
+
 
