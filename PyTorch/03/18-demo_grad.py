@@ -56,7 +56,8 @@ with torch.no_grad():
     intermediate_result = some_operation(original_tensor)
 
 
-# Prevent gradient tracing-  In some scenarios, such as when validating the model or calculating some intermediate results that do not require updating parameters, preventing gradient tracking can reduce memory consumption and improve efficiency. Using .detach() or torch.no_grad() are effective means of achieving this.
+# Prevent gradient tracing
+# In some scenarios, such as when validating the model or calculating some intermediate results that do not require updating parameters, preventing gradient tracking can reduce memory consumption and improve efficiency. Using .detach() or torch.no_grad() are effective means of achieving this.
 # method 1 - Using the .detach() method: Returns a new tensor with the same value as the original tensor, but does not track gradients.
 new_tensor = original_tensor.detach()
 # method2 - Use torch.no_grad() context manager.
@@ -65,7 +66,8 @@ with torch.no_grad():
     intermediate_result = some_operation(original_tensor)
 
 
-# A context manager that controls gradient calculations torch.autograd.set_grad_enabled(True|False) is another powerful tool for globally controlling whether gradient calculations are performed in specific parts of the code. Compared to .detach() and torch.no_grad(), it provides more flexibility because it allows gradient tracking to be dynamically turned on or off in different parts of the code, which is useful for complex model debugging, performance optimization, or mixed precision training Especially useful in other scenarios.
+# A context manager 
+# controls gradient calculations torch.autograd.set_grad_enabled(True|False) is another powerful tool for globally controlling whether gradient calculations are performed in specific parts of the code. Compared to .detach() and torch.no_grad(), it provides more flexibility because it allows gradient tracking to be dynamically turned on or off in different parts of the code, which is useful for complex model debugging, performance optimization, or mixed precision training Especially useful in other scenarios.
 # default senario, track gradients
 print(f"track current gradient {torch.is_grad_enabled()}")  # output: True
 
@@ -78,4 +80,21 @@ with torch.autograd.set_grad_enabled(False):
 
 # Leave context, recover tracking gradient status
 print(f"Without context，track gradient status: {torch.is_grad_enabled()}")  # 输出: True
+
+
+# Optimizer combined with automatic derivation
+# When training a neural network model, an optimizer is usually used to update the parameters of the model. The optimizer uses the gradients calculated by automatic differentiation to adjust parameters to minimize the loss function. Here is a simple example using the stochastic gradient descent (SGD) optimizer:
+import torch
+from torch import nn, optim
+
+
+model = nn.Linear(2, 1)  
+inputs = torch.randn(10, 2)  
+labels = torch.randn(10, 1)  
+optimizer = optim.SGD(model.parameters(), lr=0.01)  
+outputs = model(inputs)
+loss = nn.MSELoss()(outputs, labels)
+loss.backward()
+optimizer.step()
+optimizer.zero_grad()
 
