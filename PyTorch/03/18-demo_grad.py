@@ -43,12 +43,14 @@ out = z.mean()  # mean
 out.backward()
 print("Gradient of x with respect to the output:", x.grad)
 
+
+
 '''
 In some scenarios, such as when validating the model or calculating some intermediate results that do not require updating parameters, 
 preventing gradient tracking can reduce memory consumption and improve efficiency. Using .detach() or torch.no_grad() are effective means of achieving this.
 '''
 # Using the .detach() method: Returns a new tensor with the same value as the original tensor, but does not track 
-gradients.new_tensor = original_tensor.detach()
+gradients.new_tensor = x.detach()
 
 # Use torch.no_grad() context manager.
 with torch.no_grad():
