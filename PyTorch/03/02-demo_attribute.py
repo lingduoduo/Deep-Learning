@@ -1,7 +1,27 @@
 import torch
 
-dev = torch.device("cpu")
+dev = torch.device("mps")
+
+
+def create_torch_tensors(device):
+    x = torch.rand((10000, 10000), dtype=torch.float32)
+    y = torch.rand((10000, 10000), dtype=torch.float32)
+    x = x.to(device)
+    y = y.to(device)
+
+    return x, y
+
+device = torch.device("cpu")
+x, y = create_torch_tensors(device)
+
+
+print(x * y)
+
+
+# dev = torch.device("cpu")
+
 # dev = torch.device("cuda")
+
 a = torch.tensor([2, 2],
                  dtype=torch.float32,
                  device=dev)
@@ -9,10 +29,10 @@ print(a)
 
 i = torch.tensor([[0, 1, 2], [0, 1, 2]])
 v = torch.tensor([1, 2, 3])
-a = torch.sparse_coo_tensor(i, v, (4, 4),
-                            dtype=torch.float32,
-                            device=dev).to_dense()
-print(a)
+# a = torch.sparse_coo_tensor(i, v, (4, 4),
+#                             dtype=torch.float32,
+#                             device=dev).to_dense()
+# print(a)
 
 
 tensor = torch.tensor([[1, 2, 3], [4, 5, 6]])
