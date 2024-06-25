@@ -3,6 +3,7 @@ import pandas as pd
 import torch
 from torch import nn
 from d2l import torch as d2l
+import numpy as np
 
 class PositionWiseFFN(nn.Module):
     """基于位置的前馈网络"""
@@ -227,5 +228,4 @@ dec_attention_weights = dec_attention_weights_filled.reshape((-1, 2, num_layers,
 dec_self_attention_weights, dec_inter_attention_weights = \
     dec_attention_weights.permute(1, 2, 3, 0, 4)
 print(dec_self_attention_weights.shape, dec_inter_attention_weights.shape)
-
 
