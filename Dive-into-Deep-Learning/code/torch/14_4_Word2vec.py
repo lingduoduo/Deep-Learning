@@ -5,7 +5,7 @@ import math
 import random
 
 import torch
-from d2l import torch as d2l
+# from d2l import torch as d2l
 from torch import nn
 
 
@@ -128,21 +128,18 @@ class RandomGenerator:
 def get_negatives(all_contexts, vocab, counter, K):
     """返回负采样中的噪声词"""
     # 索引为1、2、...（索引0是词表中排除的未知标记）
-    sampling_weights = [counter[vocab.to_tokens(i)]**0.75
-                        for i in range(1, len(vocab))]
+    sampling_weights = [counter[vocab.to_tokens(i)]**0.75 for i in range(1, len(vocab))]
     all_negatives, generator = [], RandomGenerator(sampling_weights)
     for contexts in all_contexts:
         negatives = []
         while len(negatives) < len(contexts) * K:
             neg = generator.draw()
-            # 噪声词不能是上下文词
             if neg not in contexts:
                 negatives.append(neg)
         all_negatives.append(negatives)
     return all_negatives
 
 def batchify(data):
-    """返回带有负采样的跳元模型的小批量样本"""
     max_len = max(len(c) + len(n) for _, c, n in data)
     centers, contexts_negatives, masks, labels = [], [], [], []
     for center, context, negative in data:
@@ -157,7 +154,6 @@ def batchify(data):
 
 
 def load_data_ptb(batch_size, max_window_size, num_noise_words):
-    """下载PTB数据集，然后将其加载到内存中"""
     num_workers = 0
     sentences = read_ptb()
     vocab = Vocab(sentences, min_freq=10)
