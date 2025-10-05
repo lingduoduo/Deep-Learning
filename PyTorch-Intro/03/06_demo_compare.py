@@ -19,7 +19,6 @@ print(torch.ne(a, b))
 # return a tensor with all elements set to False
 greater_than = tensor > tensor
 
-####
 
 a = torch.tensor([[1, 4, 4, 3, 5],
                   [2, 3, 1, 3, 5]])
