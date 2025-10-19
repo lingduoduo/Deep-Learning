@@ -218,6 +218,7 @@ Docker allows you to deploy your model in a consistent environment, regardless o
 
 Let’s create a Dockerfile that packages FastAPI, TorchServe, and all necessary dependencies. Here’s a step-by-step breakdown:
 
+```
     # Step 1: Base image with Python and CUDA if using GPU
     FROM pytorch/pytorch:1.12.1-cuda11.3-cudnn8-runtime
     
@@ -239,6 +240,7 @@ Let’s create a Dockerfile that packages FastAPI, TorchServe, and all necessary
     # Step 6: Expose port and define the entry point
     EXPOSE 8080
     CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+```
 
 Explanation:
 
@@ -247,42 +249,46 @@ Explanation:
 3. Expose Port: Makes the API accessible on port 8080.
 4. Entrypoint: Runs the FastAPI app with Uvicorn, a lightning-fast ASGI server.
 
-Running the Docker Container
+### Running the Docker Container
 
 Once the Dockerfile is ready, you can build and run the container:
 
-    # Build the Docker image
-    docker build -t my_pytorch_app .
-    
-    # Run the container
-    docker run -p 8080:8080 my_pytorch_app
+```
+# Build the Docker image
+docker build -t my_pytorch_app .
+
+# Run the container
+docker run -p 8080:8080 my_pytorch_app
+```
 
 Tips for Scaling:
 
 - Resource Allocation: Use Docker’s --cpus and --memory flags to limit resource usage.
 - Container Scaling: For production, consider using an orchestrator like Kubernetes for scaling Docker containers.
 
-Advanced Model Serving: Optimization Techniques
+## Advanced Model Serving: Optimization Techniques
 
 When serving models, speed is everything. Let’s optimize the inference process to ensure fast and efficient predictions.
 
-Optimizing Model Inference
+### Optimizing Model Inference
 
 This might surprise you: using TorchScript can significantly speed up your model’s inference time. Here’s how you can script your model:
 
-    import torch
-    import torchvision.models as models
-    
-    # Load and script the model
-    model = models.resnet50(pretrained=True)
-    scripted_model = torch.jit.script(model)
-    
-    # Save the scripted model
-    scripted_model.save("resnet50_scripted.pt")
+```
+import torch
+import torchvision.models as models
+
+# Load and script the model
+model = models.resnet50(pretrained=True)
+scripted_model = torch.jit.script(model)
+
+# Save the scripted model
+scripted_model.save("resnet50_scripted.pt")
+```
 
 TorchScript converts PyTorch models into a more optimized format, allowing faster inference in production environments. Pro Tip: Always benchmark your model after scripting to ensure it’s still performing as expected.
 
-Model Quantization
+### Model Quantization
 
 For further optimization, you can reduce your model’s memory footprint with quantization. Here’s an example using dynamic quantization:
 
@@ -293,10 +299,11 @@ For further optimization, you can reduce your model’s memory footprint with qu
 
 Quantization can reduce latency and model size, making it ideal for environments with limited resources.
 
-Handling Batch Inference
+### Handling Batch Inference
 
 In production, batch inference is often more efficient than single-image inference, as it maximizes throughput. Here’s how to batch requests within FastAPI:
 
+```
     from fastapi import FastAPI
     import torch
     
@@ -308,24 +315,27 @@ In production, batch inference is often more efficient than single-image inferen
         with torch.no_grad():
             outputs = model(batch)
         return outputs.argmax(1).tolist()
+```
 
 This endpoint can handle multiple images at once, improving processing speed, especially for large-scale applications.
 
-Using GPUs for Inference
+### Using GPUs for Inference
 
 Finally, let’s take advantage of GPUs for faster inference. To enable GPU inference with TorchServe, update the configuration to ensure the server recognizes your GPUs:
 
-    default_device=gpu
+```
+default_device=gpu
+```
 
 For multi-GPU setups, use a specific device for each model, allowing you to serve multiple models concurrently without overloading a single GPU.
 
 These steps should cover everything you need to build a high-performance, scalable model-serving setup in PyTorch. Each section targets real-world challenges, offering robust solutions to ensure your model serving pipeline is both efficient and scalable.
 
-Monitoring and Logging with Prometheus and Grafana
+### Monitoring and Logging with Prometheus and Grafana
 
 “Think of monitoring as your deployment’s health check — without it, you’re flying blind.” To maintain the health of a production model, real-time monitoring is essential. This section covers how you can use Prometheus for tracking metrics and Grafana for visualization, so you can quickly identify bottlenecks, latency issues, or even system failures.
 
-Setting Up Monitoring with Prometheus
+### Setting Up Monitoring with Prometheus
 
 TorchServe has built-in support for Prometheus, which makes monitoring straightforward. By enabling Prometheus with TorchServe, you can track metrics like model performance, inference latency, and API response times. Here’s how to get started:
 
@@ -333,52 +343,60 @@ TorchServe has built-in support for Prometheus, which makes monitoring straightf
 
 Add the following configuration in the config.properties file to enable Prometheus monitoring:
 
-    metrics.enabled=true
-    metrics.port=9090  # Default port for Prometheus
+```
+metrics.enabled=true
+metrics.port=9090  # Default port for Prometheus
+```
 
 2. Start Prometheus:
 
 Next, install and run Prometheus. Create a configuration file prometheus.yml to specify the TorchServe endpoint:
 
-    global:
-      scrape_interval: 5s
-    
-    scrape_configs:
-      - job_name: 'torchserve'
-        static_configs:
-          - targets: ['localhost:9090']
+```
+global:
+    scrape_interval: 5s
+
+scrape_configs:
+    - job_name: 'torchserve'
+    static_configs:
+        - targets: ['localhost:9090']
+```
 
 3. Run Prometheus:
 
 Launch Prometheus using this configuration file:
 
-    prometheus --config.file=prometheus.yml
+```
+prometheus --config.file=prometheus.yml
+```
 
 With Prometheus now scraping metrics from TorchServe, you’ll have access to real-time metrics.
 
-Custom Metric Implementation
+### Custom Metric Implementation
 
 Let’s say you want to track specific metrics, like the average inference time or model load times. TorchServe allows you to define custom metrics for this purpose.
 
 For example, you can create a custom handler that logs inference times and sends them to Prometheus:
 
-    # handler.py
-    import time
-    from ts.metrics.metrics_store import MetricsStore
+```
+# handler.py
+import time
+from ts.metrics.metrics_store import MetricsStore
+
+def predict_fn(input_data, model):
+    start_time = time.time()
+    output = model(input_data)
+    inference_time = time.time() - start_time
     
-    def predict_fn(input_data, model):
-        start_time = time.time()
-        output = model(input_data)
-        inference_time = time.time() - start_time
-        
-        # Log custom metric
-        MetricsStore.log_metric("CustomMetrics.InferenceTime", inference_time)
-        
-        return output
+    # Log custom metric
+    MetricsStore.log_metric("CustomMetrics.InferenceTime", inference_time)
+    
+    return output
+```
 
 This metric will now appear in Prometheus under the name CustomMetrics_InferenceTime, allowing you to track average inference times in real time.
 
-Visualizing Metrics with Grafana
+### Visualizing Metrics with Grafana
 
 Prometheus metrics are helpful, but visualizing them in Grafana brings them to life. Here’s how to integrate Grafana with Prometheus to create dashboards.
 
@@ -396,47 +414,53 @@ Now that Prometheus is configured, you can create dashboards in Grafana. Here ar
 
 Example Query for Inference Latency in Grafana:
 
-    avg(CustomMetrics_InferenceTime)
+```
+avg(CustomMetrics_InferenceTime)
+```
 
 With these dashboards, you’ll have a real-time view of your model’s health and performance, allowing you to spot issues before they escalate.
 
-Testing and Validating Your Deployment
+### Testing and Validating Your Deployment
 
 “You’ve built it, you’ve deployed it — now let’s make sure it works.” Testing and validation are crucial for ensuring reliability and efficiency in production. Here’s how you can set up an automated pipeline to validate your deployment and conduct performance benchmarking.
 
-Automated Testing Pipeline
+### Automated Testing Pipeline
 
 Let’s start by creating automated tests to validate your model’s predictions. A typical approach is to use a framework like pytest along with requests to call your model’s API and verify output correctness.
 
 1. Basic Testing Script:
 2. Here’s a script to test your model’s predictions post-deployment:
 
-    import requests
-    
-    def test_model_prediction():
-        url = "http://localhost:8080/predict"
-        files = {"file": open("test_image.jpg", "rb")}
-        response = requests.post(url, files=files)
-        assert response.status_code == 200
-        assert "class" in response.json()
+```
+import requests
+
+def test_model_prediction():
+    url = "http://localhost:8080/predict"
+    files = {"file": open("test_image.jpg", "rb")}
+    response = requests.post(url, files=files)
+    assert response.status_code == 200
+    assert "class" in response.json()
+```
 
 2. CI/CD Integration:
 
 To automate this, you can integrate the script into a CI/CD pipeline (e.g., using GitHub Actions). Here’s an example GitHub Actions workflow:
 
-    name: Model Test
-    
-    on: [push, pull_request]
-    
-    jobs:
-      test:
-        runs-on: ubuntu-latest
-        steps:
-          - uses: actions/checkout@v2
-          - name: Install dependencies
-            run: pip install -r requirements.txt
-          - name: Run tests
-            run: pytest test_script.py
+```
+name: Model Test
+
+on: [push, pull_request]
+
+jobs:
+    test:
+    runs-on: ubuntu-latest
+    steps:
+        - uses: actions/checkout@v2
+        - name: Install dependencies
+        run: pip install -r requirements.txt
+        - name: Run tests
+        run: pytest test_script.py
+```
 
 This setup will automatically test your deployment each time you push code, helping you catch issues early.
 
@@ -448,82 +472,88 @@ To understand your model’s performance under real conditions, benchmarking too
 
 Here’s a Python script to measure average inference time:
 
-    import time
-    import requests
-    
-    url = "http://localhost:8080/predict"
-    files = {"file": open("test_image.jpg", "rb")}
-    
-    start_time = time.time()
-    for _ in range(100):
-        requests.post(url, files=files)
-    avg_inference_time = (time.time() - start_time) / 100
-    print(f"Average Inference Time: {avg_inference_time} seconds")
+```
+import time
+import requests
+
+url = "http://localhost:8080/predict"
+files = {"file": open("test_image.jpg", "rb")}
+
+start_time = time.time()
+for _ in range(100):
+    requests.post(url, files=files)
+avg_inference_time = (time.time() - start_time) / 100
+print(f"Average Inference Time: {avg_inference_time} seconds")
+```
 
 2. Simulating Load with Locust:
 
 To simulate concurrent users, use Locust:
 
-    from locust import HttpUser, task
-    
-    class ModelUser(HttpUser):
-        @task
-        def predict(self):
-            files = {"file": open("test_image.jpg", "rb")}
-            self.client.post("/predict", files=files)
+```
+from locust import HttpUser, task
+
+class ModelUser(HttpUser):
+    @task
+    def predict(self):
+        files = {"file": open("test_image.jpg", "rb")}
+        self.client.post("/predict", files=files)
+```
 
 1. This code will simulate multiple users hitting your model’s endpoint, allowing you to test its scalability and response times under heavy load.
 
-Scaling and Load Balancing
+### Scaling and Load Balancing
 
 When your model serving setup needs to handle thousands (or millions) of requests, you’ll need robust scaling and load-balancing techniques. Here’s how Kubernetes and Nginx can help.
 
-Horizontal Scaling with Kubernetes
+### Horizontal Scaling with Kubernetes
 
 Kubernetes allows you to horizontally scale your Dockerized model serving setup by replicating containers across multiple nodes.
 
 1. Kubernetes Deployment YAML:
 
 Here’s an example configuration to deploy your model server with Kubernetes:
-
-    apiVersion: apps/v1
-    kind: Deployment
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: model-server
+spec:
+    replicas: 3  # Number of replicas for scaling
+    selector:
+    matchLabels:
+        app: model-server
+    template:
     metadata:
-      name: model-server
+        labels:
+        app: model-server
     spec:
-      replicas: 3  # Number of replicas for scaling
-      selector:
-        matchLabels:
-          app: model-server
-      template:
-        metadata:
-          labels:
-            app: model-server
-        spec:
-          containers:
-            - name: model-server
-              image: my_pytorch_app
-              ports:
-                - containerPort: 8080
+        containers:
+        - name: model-server
+            image: my_pytorch_app
+            ports:
+            - containerPort: 8080
+```
 
 This deployment will spin up 3 replicas of your model server, balancing the load across them.
 
 2. Kubernetes Horizontal Pod Autoscaler (HPA):
 
 To scale automatically based on CPU usage, add an HPA configuration:
-
-    apiVersion: autoscaling/v1
-    kind: HorizontalPodAutoscaler
-    metadata:
-      name: model-server-hpa
-    spec:
-      scaleTargetRef:
-        apiVersion: apps/v1
-        kind: Deployment
-        name: model-server
-      minReplicas: 3
-      maxReplicas: 10
-      targetCPUUtilizationPercentage: 50
+```
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+    name: model-server-hpa
+spec:
+    scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: model-server
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 50
+```
 
 1. This config will automatically adjust the number of replicas based on CPU usage.
 
@@ -534,25 +564,26 @@ Nginx can act as a load balancer, distributing requests across multiple instance
 1. Nginx Configuration:
 
 Here’s a basic Nginx configuration to load balance across your Kubernetes pods:
+```
+upstream model_servers {
+    server model-server-1:8080;
+    server model-server-2:8080;
+    server model-server-3:8080;
+}
 
-    upstream model_servers {
-        server model-server-1:8080;
-        server model-server-2:8080;
-        server model-server-3:8080;
+server {
+    listen 80;
+
+    location / {
+        proxy_pass http://model_servers;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection keep-alive;
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
     }
-    
-    server {
-        listen 80;
-    
-        location / {
-            proxy_pass http://model_servers;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection keep-alive;
-            proxy_set_header Host $host;
-            proxy_cache_bypass $http_upgrade;
-        }
-    }
+}
+```
 
 2. Handling Network Latency and Connection Pooling:
 
@@ -561,11 +592,11 @@ Here’s a basic Nginx configuration to load balance across your Kubernetes pods
 
 With these techniques, your model-serving pipeline will be scalable, resilient, and optimized for high availability. This setup allows you to confidently serve large-scale applications while monitoring performance and ensuring reliable predictions for end-users.
 
-Security and Access Control
+### Security and Access Control
 
 Imagine this: your model is out there, making predictions, and handling sensitive data — potentially on critical systems. But without proper security, it’s like leaving your front door unlocked. Here’s how to secure your FastAPI model serving setup with authentication, authorization, and data encryption.
 
-Authentication and Authorization
+### Authentication and Authorization
 
 One of the simplest and most effective ways to secure your API is to require authentication. Here’s where JWTs (JSON Web Tokens) come in handy. They’re lightweight, stateless, and work well for token-based access control.
 
@@ -575,122 +606,133 @@ Let’s add JWT-based authentication to an endpoint so only authorized users can
 
 1. Install the JWT library:
 
-    pip install pyjwt
+```
+pip install pyjwt
+```
 
 2. Define a function to generate JWTs:
 
-    import jwt
-    from datetime import datetime, timedelta
-    
-    SECRET_KEY = "your_secret_key"  # Replace with a secure key
-    
-    def create_token(data):
-        payload = {
-            "data": data,
-            "exp": datetime.utcnow() + timedelta(hours=1)  # Token valid for 1 hour
-        }
-        return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+```
+import jwt
+from datetime import datetime, timedelta
+
+SECRET_KEY = "your_secret_key"  # Replace with a secure key
+
+def create_token(data):
+    payload = {
+        "data": data,
+        "exp": datetime.utcnow() + timedelta(hours=1)  # Token valid for 1 hour
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+```
 
 3. Add a dependency to verify tokens:
+```
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 
-    from fastapi import Depends, HTTPException, status
-    from fastapi.security import OAuth2PasswordBearer
-    
-    oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-    
-    def verify_token(token: str = Depends(oauth2_scheme)):
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-            return payload["data"]
-        except jwt.ExpiredSignatureError:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
-        except jwt.InvalidTokenError:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+def verify_token(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        return payload["data"]
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+```
 
 4. Protect your API endpoint:
 
 Here’s how to apply the authentication layer to the /predict endpoint:
-
-    @app.post("/predict/")
-    async def predict(file: UploadFile = File(...), token: str = Depends(verify_token)):
-        # Prediction code goes here
-        return {"result": "Prediction"}
+```
+@app.post("/predict/")
+async def predict(file: UploadFile = File(...), token: str = Depends(verify_token)):
+    # Prediction code goes here
+    return {"result": "Prediction"}
+```
 
 Now, only users with a valid JWT token can access this endpoint, helping to secure your model from unauthorized access.
 
-Data Encryption and Privacy
+### Data Encryption and Privacy
 
 Next, let’s protect data in transit. You don’t want sensitive data being transmitted as plain text. HTTPS (SSL/TLS) encryption ensures all communications between clients and your server remain private.
 
 1. Generate an SSL certificate (for local testing with self-signed certs):
 
-    openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365
+```
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365
+```
 
 2. Run FastAPI with HTTPS:
 
 Use Uvicorn to run FastAPI over HTTPS:
-
-    uvicorn main:app --host 0.0.0.0 --port 443 --ssl-keyfile key.pem --ssl-certfile cert.pem
+```
+uvicorn main:app --host 0.0.0.0 --port 443 --ssl-keyfile key.pem --ssl-certfile cert.pem
+```
 
 With this setup, your data remains encrypted while traveling between your clients and the model server, protecting it from interception.
 
-Handling Edge Cases and Failures
+### Handling Edge Cases and Failures
 
 No system is perfect, and in production, unexpected failures are bound to happen. Let’s explore strategies for handling these failures gracefully and logging errors effectively.
 
-Graceful Failure Handling
+### Graceful Failure Handling
 
 When working with FastAPI, you can set up exception handlers to manage server errors and retries. Let’s add an error-handling mechanism for common issues like timeouts.
 
 Example: Handling Timeout Errors:
+```
+from fastapi import HTTPException
 
-    from fastapi import HTTPException
-    
-    @app.exception_handler(TimeoutError)
-    async def timeout_exception_handler(request, exc):
-        return JSONResponse(
-            status_code=504,
-            content={"message": "The server took too long to respond."},
-        )
-    
-    @app.post("/predict/")
-    async def predict(file: UploadFile = File(...)):
-        try:
-            # Simulate a timeout error
-            # Prediction code here
-            return {"result": "Prediction"}
-        except TimeoutError as e:
-            raise HTTPException(status_code=504, detail=str(e))
+@app.exception_handler(TimeoutError)
+async def timeout_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=504,
+        content={"message": "The server took too long to respond."},
+    )
+
+@app.post("/predict/")
+async def predict(file: UploadFile = File(...)):
+    try:
+        # Simulate a timeout error
+        # Prediction code here
+        return {"result": "Prediction"}
+    except TimeoutError as e:
+        raise HTTPException(status_code=504, detail=str(e))
+```
 
 With this handler, if a timeout occurs, your API returns a helpful message instead of failing silently.
 
-Error Logging
+### Error Logging
 
 Error logs are invaluable for diagnosing issues in production. Let’s set up logging in FastAPI to capture runtime errors and maintain a log for debugging.
 
 Setting up Logging:
+```
+import logging
 
-    import logging
-    
-    logging.basicConfig(filename="app.log", level=logging.ERROR)
-    
-    @app.post("/predict/")
-    async def predict(file: UploadFile = File(...)):
-        try:
-            # Prediction code here
-            return {"result": "Prediction"}
-        except Exception as e:
-            logging.error(f"Error occurred: {e}")
-            raise HTTPException(status_code=500, detail="Internal Server Error")
+logging.basicConfig(filename="app.log", level=logging.ERROR)
+
+@app.post("/predict/")
+async def predict(file: UploadFile = File(...)):
+    try:
+        # Prediction code here
+        return {"result": "Prediction"}
+    except Exception as e:
+        logging.error(f"Error occurred: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+```
 
 With logging configured, every error is recorded, allowing you to review error logs to quickly identify root causes.
 
-Monitoring Downtime
+### Monitoring Downtime
 
 Prometheus can also be configured to alert you if your model server goes down. Here’s a basic alert configuration:
 
 1. Define Alert Rules in Prometheus:
-
+```
     groups:
       - name: ModelServerAlerts
         rules:
@@ -701,18 +743,18 @@ Prometheus can also be configured to alert you if your model server goes down. H
               severity: critical
             annotations:
               summary: "Model server is down"
-
+```
 2. Set up AlertManager (Prometheus companion tool):
 
 1. This will notify you via email, Slack, or other services if the server is down for more than five minutes.
 
 With these alerting mechanisms, you’ll always be aware of critical issues, helping you maintain uptime.
 
-Wrapping Up and Future Improvements
+### Wrapping Up and Future Improvements
 
 As we reach the end of this guide, let’s briefly recap the essential steps and consider future improvements to make your model serving pipeline even more robust.
 
-Summary of Key Steps
+### Summary of Key Steps
 
 Here’s a quick recap of what we covered:
 
@@ -724,11 +766,11 @@ Here’s a quick recap of what we covered:
 
 By following these steps, you’ve set up a production-ready, highly available model-serving architecture in PyTorch.
 
-Suggestions for Continuous Optimization
+### Suggestions for Continuous Optimization
 
 Here’s the deal: model serving isn’t a “set it and forget it” task. Continuous monitoring and optimization are crucial, especially as your user load grows. Keep an eye on metrics like inference latency, throughput, and error rates, and consider revisiting quantization, batch processing, or other optimization techniques periodically.
 
-Further Exploration
+### Further Exploration
 
 Finally, if you want to take your model-serving expertise to the next level, consider exploring:
 
