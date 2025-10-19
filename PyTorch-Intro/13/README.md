@@ -1,156 +1,174 @@
-Setting Up the Model and Environment for Serving
+## Setting Up the Model and Environment for Serving
 
 Before we get to the fun part — actually serving your model — let’s start with the essentials. Getting the model ready and setting up the right environment are foundational steps you don’t want to skip.
 
 Here’s how to get started with loading models and preparing your environment to make everything work smoothly.
 
-Loading a Pretrained Model or Custom Model
+### Loading a Pretrained Model or Custom Model
 
 Whether you’re using a pretrained model like ResNet or a custom one, PyTorch makes loading it straightforward. Here’s some code to help you get a model up and running:
 
-    import torch
-    import torchvision.models as models
-    
-    # Example: Loading a pretrained ResNet model
-    model = models.resnet50(pretrained=True)
-    model.eval()  # Set model to evaluation mode for serving
+```
+import torch
+import torchvision.models as models
+
+# Example: Loading a pretrained ResNet model
+model = models.resnet50(pretrained=True)
+model.eval()  # Set model to evaluation mode for serving
+```
 
 In this example, we’re working with ResNet-50, but you can replace it with any model that fits your application’s needs. Pro Tip: Always remember to set model.eval() before serving. This ensures that your model uses the correct inference settings, disabling operations like dropout that might introduce unwanted randomness.
 
-Environment Setup
+### Environment Setup
 
 Next up, the environment. For effective model serving in PyTorch, we’ll use some key tools: TorchServe for the model server, FastAPI for the REST API, and Docker to containerize everything.
 
-Step 1: Installing Dependencies
+- Step 1: Installing Dependencies
 
 First, ensure you have the necessary packages installed. Here’s a quick code block to get you started:
 
-    pip install torch torchvision torchserve fastapi docker
+```
+pip install torch torchvision torchserve fastapi docker
+```
 
 If you’re using a GPU, make sure your CUDA installation matches your PyTorch version. This will allow TorchServe to leverage the GPU for faster inference.
 
-Step 2: Setting Up Docker (Optional, but Highly Recommended)
+- Step 2: Setting Up Docker (Optional, but Highly Recommended)
 
 Docker simplifies deployment, especially when moving models from one environment to another. Here’s a snippet to confirm Docker installation:
 
-    # Install Docker if needed
-    # For Ubuntu
-    sudo apt-get update
-    sudo apt-get install -y docker.io
-    
-    # Check Docker version
-    docker --version
+```
+# Install Docker if needed
+# For Ubuntu
+sudo apt-get update
+sudo apt-get install -y docker.io
+
+# Check Docker version
+docker --version
+```
 
 Setting up the environment like this ensures smooth transitions from development to deployment, saving you from “it works on my machine” issues down the line. With everything ready, let’s dive into TorchServe.
 
-TorchServe Setup: Serving Models in Production
+## TorchServe Setup: Serving Models in Production
 
 TorchServe is the go-to tool for serving PyTorch models, and for good reason — it’s specifically designed to make deploying models simpler and more scalable. Here’s the deal: TorchServe lets you deploy models with minimal hassle, manage multiple models in parallel, and handle load balancing effortlessly.
 
-Why Use TorchServe?
+### Why Use TorchServe?
 
 TorchServe is lightweight, customizable, and works well in both cloud and on-premises setups. It supports multi-model serving, which allows you to deploy several models at once. Whether you need model versioning, logging, or metrics collection, TorchServe has you covered, which is essential when you’re running production-grade systems.
 
-Setting Up TorchServe
+### Setting Up TorchServe
 
-To get started with TorchServe, you’ll need to create a .mar file, which is a serialized version of your model along with any required configurations.
+To get started with TorchServe, you’ll need to create a .mar file, which is a serialized version of your model along with any required configurations. It can be used in Amazon SageMaker, Docker Container, AWS EC2, etc.
 
-Step 1: Creating the .mar File
+- Step 1: Creating the .mar File
 
 Here’s how you can convert your PyTorch model to a .mar file:
 
 1. Save your model as a **.pth** file:
 
-    torch.save(model.state_dict(), "resnet50.pth")
+```
+torch.save(model.state_dict(), "resnet50.pth")
+```
 
 2. Define a model handler (TorchServe uses a handler file to manage input and output):
 
-    # handler.py
-    import torch
-    import torchvision.transforms as transforms
-    from PIL import Image
-    
-    def model_fn(model_dir):
-        model = models.resnet50(pretrained=False)
-        model.load_state_dict(torch.load(f"{model_dir}/resnet50.pth"))
-        model.eval()
-        return model
-    
-    def predict_fn(input_data, model):
-        transform = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor()
-        ])
-        input_tensor = transform(input_data).unsqueeze(0)  # Add batch dimension
-        with torch.no_grad():
-            return model(input_tensor)
+```
+# handler.py
 
-3. Package the model with Torch Model Archiver:
+import torch
+import torchvision.transforms as transforms
+from PIL import Image
 
-    torch-model-archiver --model-name resnet50 --version 1.0 --serialized-file resnet50.pth \
-    --handler handler.py --export-path ./
+def model_fn(model_dir):
+    model = models.resnet50(pretrained=False)
+    model.load_state_dict(torch.load(f"{model_dir}/resnet50.pth"))
+    model.eval()
+    return model
 
-This command creates a resnet50.mar file, which you’ll use to serve the model.
-
-Launching TorchServe
-
-Finally, let’s launch TorchServe with the .mar file we just created. TorchServe reads configuration settings from a .properties file, so let’s set one up:
-
-Example **config.properties** file:
-
-    inference_address=http://0.0.0.0:8080
-    management_address=http://0.0.0.0:8081
-
-Starting TorchServe:
-
-    torchserve --start --ncs --model-store . --models resnet50=resnet50.mar --ts-config config.properties
-
-You now have a running instance of TorchServe that’s serving your model on port 8080. With the configurations in place, this setup is flexible enough to support different deployment environments and scalable enough to handle production loads.
-
-Each of these steps ensures you’re set up for success with model serving in PyTorch. Now that we’ve tackled the foundational setup, we can look at how to connect this to a REST API and containerize everything for scalable deployment.
-
-Building a REST API with FastAPI and TorchServe
-
-“Ever tried to build a bridge between two worlds?” That’s exactly what we’re doing here — connecting your PyTorch model with a RESTful API to make it accessible to applications, users, or services. When it comes to building APIs for machine learning models, FastAPI is often the preferred choice for a simple reason: speed.
-
-Why FastAPI?
-
-FastAPI is lightweight, asynchronous, and, well, fast. Unlike Flask, FastAPI leverages Python’s async capabilities, making it highly efficient for handling concurrent requests—essential for model serving. For example, if multiple users hit your endpoint at once, FastAPI can handle the requests simultaneously, ensuring low latency.
-
-API Creation
-
-Here’s how you can create a basic FastAPI app to receive inputs and serve model predictions. We’ll build an endpoint that accepts image files and returns the prediction result.
-
-    from fastapi import FastAPI, File, UploadFile
-    from torchvision import transforms
-    from PIL import Image
-    import torch
-    
-    app = FastAPI()
-    
-    # Define the transformation for the input image
+def predict_fn(input_data, model):
     transform = transforms.Compose([
         transforms.Resize(256),
         transforms.CenterCrop(224),
         transforms.ToTensor()
     ])
+    input_tensor = transform(input_data).unsqueeze(0)  # Add batch dimension
+    with torch.no_grad():
+        return model(input_tensor)
+```
+
+3. Package the model with Torch Model Archiver:
+
+```
+torch-model-archiver --model-name resnet50 --version 1.0 --serialized-file resnet50.pth --handler handler.py --export-path ./
+```
+
+This command creates a resnet50.mar file, which you’ll use to serve the model.
+
+### Launching TorchServe
+
+Finally, let’s launch TorchServe with the .mar file we just created. TorchServe reads configuration settings from a .properties file, so let’s set one up:
+
+Example **config.properties** file:
+
+```
+inference_address=http://0.0.0.0:8080
+management_address=http://0.0.0.0:8081
+```
+
+### Starting TorchServe:
+
+```
+torchserve --start --ncs --model-store . --models resnet50=resnet50.mar --ts-config config.properties
+```
+
+You now have a running instance of TorchServe that’s serving your model on port 8080. With the configurations in place, this setup is flexible enough to support different deployment environments and scalable enough to handle production loads.
+
+Each of these steps ensures you’re set up for success with model serving in PyTorch. Now that we’ve tackled the foundational setup, we can look at how to connect this to a REST API and containerize everything for scalable deployment.
+
+## Building a REST API with FastAPI and TorchServe
+
+“Ever tried to build a bridge between two worlds?” That’s exactly what we’re doing here — connecting your PyTorch model with a RESTful API to make it accessible to applications, users, or services. When it comes to building APIs for machine learning models, FastAPI is often the preferred choice for a simple reason: speed.
+
+## Why FastAPI?
+
+FastAPI is lightweight, asynchronous, and, well, fast. Unlike Flask, FastAPI leverages Python’s async capabilities, making it highly efficient for handling concurrent requests—essential for model serving. For example, if multiple users hit your endpoint at once, FastAPI can handle the requests simultaneously, ensuring low latency.
+
+## API Creation
+
+Here’s how you can create a basic FastAPI app to receive inputs and serve model predictions. We’ll build an endpoint that accepts image files and returns the prediction result.
+
+```
+from fastapi import FastAPI, File, UploadFile
+from torchvision import transforms
+from PIL import Image
+import torch
+
+app = FastAPI()
+
+# Define the transformation for the input image
+transform = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
+    transforms.ToTensor()
+])
+
+# Load your model (assuming it's already set up with TorchServe)
+model = torch.jit.load("resnet50.pt")  # For demonstration purposes
+
+@app.post("/predict/")
+async def predict(file: UploadFile = File(...)):
+    # Load image
+    image = Image.open(file.file).convert("RGB")
+    image = transform(image).unsqueeze(0)  # Batch dimension
+
+    # Perform prediction
+    with torch.no_grad():
+        output = model(image)
+        predicted_class = output.argmax(1).item()
     
-    # Load your model (assuming it's already set up with TorchServe)
-    model = torch.jit.load("resnet50.pt")  # For demonstration purposes
-    
-    @app.post("/predict/")
-    async def predict(file: UploadFile = File(...)):
-        # Load image
-        image = Image.open(file.file).convert("RGB")
-        image = transform(image).unsqueeze(0)  # Batch dimension
-    
-        # Perform prediction
-        with torch.no_grad():
-            output = model(image)
-            predicted_class = output.argmax(1).item()
-        
-        return {"class": predicted_class}
+    return {"class": predicted_class}
+```
 
 Explanation:
 
@@ -166,18 +184,20 @@ You might be wondering: “What if I want to serve a model directly with TorchSe
 
 Here’s how to set up FastAPI to call TorchServe’s endpoint instead of loading the model locally:
 
-    import requests
-    from fastapi import FastAPI, File, UploadFile
-    
-    app = FastAPI()
-    torchserve_url = "http://localhost:8080/predictions/resnet50"
-    
-    @app.post("/predict/")
-    async def predict(file: UploadFile = File(...)):
-        files = {"data": file.file}
-        response = requests.post(torchserve_url, files=files)
-        prediction = response.json()
-        return {"prediction": prediction}
+```
+import requests
+from fastapi import FastAPI, File, UploadFile
+
+app = FastAPI()
+torchserve_url = "http://localhost:8080/predictions/resnet50"
+
+@app.post("/predict/")
+async def predict(file: UploadFile = File(...)):
+    files = {"data": file.file}
+    response = requests.post(torchserve_url, files=files)
+    prediction = response.json()
+    return {"prediction": prediction}
+```
 
 Explanation:
 
@@ -186,15 +206,15 @@ Explanation:
 
 With this integration, you get the best of both worlds — FastAPI as a user-friendly interface and TorchServe for optimized model serving.
 
-Dockerizing Your Model Serving Setup for Scalability
+### Dockerizing Your Model Serving Setup for Scalability
 
 “Imagine packaging everything — your code, dependencies, even the environment — into one neat box.” That’s Docker for you, and it’s a game-changer for reproducibility and scalability.
 
-Why Docker for Model Serving?
+### Why Docker for Model Serving?
 
 Docker allows you to deploy your model in a consistent environment, regardless of where it’s run. This means you can develop on your local machine, but run it anywhere else (cloud, on-premises) without compatibility issues.
 
-Creating a Dockerfile
+### Creating a Dockerfile
 
 Let’s create a Dockerfile that packages FastAPI, TorchServe, and all necessary dependencies. Here’s a step-by-step breakdown:
 
