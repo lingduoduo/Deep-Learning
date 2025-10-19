@@ -1,7 +1,7 @@
 
 ```
-conda create -n torch-gpu python=3.10
-conda activate torch-gpu
+conda create -n torch python=3.10
+conda activate torch
 pip install torch
 pip install torchvision
 pip install visdom
