@@ -1,16 +1,19 @@
 import torch
-# data
+
 import numpy as np
 import re
+import os
 
-ff = open("housing.data").readlines()
+dir_path = os.path.dirname(os.path.abspath(__file__))  # current file directory
+parent_dir = os.path.dirname(dir_path) 
+ff = open(parent_dir + "/cls_reg/housing.data").readlines()
 data = []
 for item in ff:
     out = re.sub(r"\s{2,}", " ", item).strip()
     # print(out)
     data.append(out.split(" "))
-data = np.array(data).astype(np.float)
-# print(data.shape)
+data = np.array(data).astype(np.float64)
+print(data.shape)
 
 Y = data[:, -1]
 X = data[:, 0:-1]
@@ -63,6 +66,8 @@ for i in range(10000):
     print(pred[0:10])
     print(y_data[0:10])
 
+    print("-------------------")
+
     #test
     x_data = torch.tensor(X_test, dtype=torch.float32)
     y_data = torch.tensor(Y_test, dtype=torch.float32)
@@ -71,7 +76,7 @@ for i in range(10000):
     loss_test = loss_func(pred, y_data) * 0.001
     print("ite:{}, loss_test:{}".format(i, loss_test))
 
-torch.save(net, "model/model.pkl")
+torch.save(net, parent_dir + "/cls_reg/model/model.pkl")
 # torch.load("")
 # torch.save(net.state_dict(), "params.pkl")
 # net.load_state_dict("")
