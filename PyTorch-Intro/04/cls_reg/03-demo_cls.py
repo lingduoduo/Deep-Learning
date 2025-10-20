@@ -2,7 +2,10 @@ import torch
 import torchvision.datasets as dataset
 import torchvision.transforms as transforms
 import torch.utils.data as data_utils
-from CNN import CNN
+import os
+
+dir_path = os.path.dirname(os.path.abspath(__file__))  # current file directory
+parent_dir = os.path.dirname(dir_path) 
 
 # data
 train_data = dataset.MNIST(root="mnist",
@@ -13,33 +16,36 @@ train_data = dataset.MNIST(root="mnist",
 test_data = dataset.MNIST(root="mnist",
                           train=False,
                           transform=transforms.ToTensor(),
-                          download=False)
-# batchsize
-train_loader = data_utils.DataLoader(dataset=train_data,
-                                     batch_size=64,
-                                     shuffle=True)
+                          download=True)
 
-test_loader = data_utils.DataLoader(dataset=test_data,
-                                    batch_size=64,
-                                    shuffle=True)
+train_loader = data_utils.DataLoader(dataset=train_data, batch_size=64, shuffle=True)
+test_loader = data_utils.DataLoader(dataset=test_data, batch_size=64, shuffle=False)
+
+class CNN(torch.nn.Module):
+    def __init__(self):
+        super(CNN, self).__init__()
+        self.con = torch.nn.Sequential(
+            torch.nn.Conv2d(1, 16, kernel_size=5, stride=1, padding=2),
+            torch.nn.BatchNorm2d(16),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(kernel_size=2, stride=2),
+        )
+        self.fc = torch.nn.Linear(16 * 14 * 14, 10)
+
+    def forward(self, x):
+        out = self.con(x)
+        out = out.view(out.size(0), -1)
+        out = self.fc(out)
+        return out
 
 cnn = CNN()
-# cnn = cnn.cuda()
-
-# loss
-
 loss_func = torch.nn.CrossEntropyLoss()
-
-# optimizer
-
 optimizer = torch.optim.Adam(cnn.parameters(), lr=0.01)
 
-# # training
+# Training + Evaluation
 for epoch in range(10):
-    for i, (images, labels) in enumerate(train_loader):
-        # images = images.cuda()
-        # labels = labels.cuda()
-
+    cnn.train()
+    for step, (images, labels) in enumerate(train_loader):
         outputs = cnn(images)
         loss = loss_func(outputs, labels)
 
@@ -47,29 +53,28 @@ for epoch in range(10):
         loss.backward()
         optimizer.step()
 
-    print("epoch is {}, ite is "
-          "{}/{}, loss is {}".format(epoch + 1, i,
-                                     len(train_data) // 64,
-                                     loss.item()))
-    # eval/test
+        if (step + 1) % 200 == 0:
+            print(f"Epoch {epoch+1}, Step {step+1}/{len(train_loader)}, Loss: {loss.item():.4f}")
+
+    # -------------------- Evaluation -------------------- #
+    cnn.eval()
     loss_test = 0
-    accuracy = 0
-    for i, (images, labels) in enumerate(test_loader):
-        # images = images.cuda()
-        # labels = labels.cuda()
-        outputs = cnn(images)
-        # [batchsize]
-        # outputs = batchsize * cls_num
-        loss_test += loss_func(outputs, labels)
-        _, pred = outputs.max(1)
-        accuracy += (pred == labels).sum().item()
+    correct = 0
 
-    accuracy = accuracy / len(test_data)
-    loss_test = loss_test / (len(test_data) // 64)
+    with torch.no_grad():
+        for images, labels in test_loader:
+            outputs = cnn(images)
+            loss_test += loss_func(outputs, labels).item()
 
-    print("epoch is {}, accuracy is {}, "
-          "loss test is {}".format(epoch + 1,
-                                   accuracy,
-                                   loss_test.item()))
+            _, pred = outputs.max(1)
+            correct += (pred == labels).sum().item()
 
-torch.save(cnn, "model/mnist_model.pkl")
+    accuracy = correct / len(test_data)
+    loss_test = loss_test / len(test_loader)
+
+    print(f"Epoch {epoch+1} | Test Accuracy: {accuracy:.4f} | Test Loss: {loss_test:.4f}")
+
+# -------------------- Save Model -------------------- #
+os.makedirs("model", exist_ok=True)
+torch.save(cnn.state_dict(), parent_dir + "/cls_reg/model/mnist_model.pth")
+print("Model saved to model/mnist_model.pth")
