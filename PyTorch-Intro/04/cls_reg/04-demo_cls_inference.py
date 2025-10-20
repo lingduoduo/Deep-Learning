@@ -2,47 +2,56 @@ import torch
 import torchvision.datasets as dataset
 import torchvision.transforms as transforms
 import torch.utils.data as data_utils
-from CNN import CNN
-#net
+import os
+# from CNN import CNN
 
-test_data = dataset.MNIST(root="mnist",
-                          train=False,
-                          transform=transforms.ToTensor(),
-                          download=False)
+class CNN(torch.nn.Module):
+    def __init__(self):
+        super(CNN, self).__init__()
+        self.con = torch.nn.Sequential(
+            torch.nn.Conv2d(1, 16, kernel_size=5, stride=1, padding=2),
+            torch.nn.BatchNorm2d(16),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(kernel_size=2, stride=2),
+        )
+        self.fc = torch.nn.Linear(16 * 14 * 14, 10)
 
-test_loader = data_utils.DataLoader(dataset=test_data,
-                                    batch_size=64,
-                                    shuffle=True)
+    def forward(self, x):
+        out = self.con(x)
+        out = out.view(out.size(0), -1)
+        out = self.fc(out)
+        return out
 
-cnn = torch.load("model/mnist_model.pkl")
-# cnn = cnn.cuda()
+# --- paths ---
+dir_path = os.path.dirname(os.path.abspath(__file__))     # .../04/cls_reg
+parent_dir = os.path.dirname(dir_path)                    # .../04
+ckpt_path = os.path.join(dir_path, "model", "mnist_model.pth")  # saved by training
 
-#loss
-#eval/test
-loss_test = 0
-accuracy = 0
+# --- data (set download=True if first time) ---
+test_data = dataset.MNIST(
+    root="mnist",
+    train=False,
+    transform=transforms.ToTensor(),
+    download=True
+)
+test_loader = data_utils.DataLoader(dataset=test_data, batch_size=64, shuffle=False)
 
-import cv2
+# --- model load (state_dict) ---
+cnn = CNN()
+state = torch.load(ckpt_path, map_location="cpu")
+cnn.load_state_dict(state)
+cnn.eval()
 
-for i, (images, labels) in enumerate(test_loader):
-    # images = images.cuda()
-    # labels = labels.cuda()
-    outputs = cnn(images)
-    _, pred = outputs.max(1)
-    accuracy += (pred == labels).sum().item()
+# --- evaluation ---
+correct = 0
+total = 0
 
-    # images = images.cpu().numpy()
-    # labels = labels.cpu().numpy()
-    # pred = pred.cpu().numpy()
-    #batchsize * 1 * 28 * 28
+with torch.no_grad():
+    for images, labels in test_loader:
+        outputs = cnn(images)
+        _, pred = outputs.max(1)
+        correct += (pred == labels).sum().item()
+        total += labels.size(0)
 
-    for idx in range(images.shape[0]):
-        im_data = images[idx]
-        im_label = labels[idx]
-        im_pred = pred[idx]
-        im_data = im_data.transpose(1, 2, 0)
-
-accuracy = accuracy / len(test_data)
-print(accuracy)
-
-
+accuracy = correct / total
+print(f"Test accuracy: {accuracy:.4f}")
