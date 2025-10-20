@@ -1,5 +1,5 @@
 import torch
-#data
+import os
 import numpy as np
 import re
 
@@ -14,13 +14,15 @@ class Net(torch.nn.Module):
         out = self.predict(out)
         return out
 
-ff = open("housing.data").readlines()
+dir_path = os.path.dirname(os.path.abspath(__file__))  # current file directory
+parent_dir = os.path.dirname(dir_path) 
+ff = open(parent_dir + "/cls_reg/housing.data").readlines()
 data = []
 for item in ff:
     out = re.sub(r"\s{2,}", " ", item).strip()
     print(out)
     data.append(out.split(" "))
-data = np.array(data).astype(np.float)
+data = np.array(data).astype(np.float64)
 print(data.shape)
 
 Y = data[:, -1]
@@ -36,7 +38,8 @@ print(Y_train.shape)
 print(X_test.shape)
 print(Y_test.shape)
 
-net = torch.load("model/model.pkl")
+# Load model for inference
+net = torch.load(parent_dir + "/cls_reg/model/model.pkl")
 loss_func = torch.nn.MSELoss()
 #test
 x_data = torch.tensor(X_test, dtype=torch.float32)
