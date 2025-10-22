@@ -1,6 +1,10 @@
 import jieba #pip install jieba
-data_path = "sources/weibo_senti_100k.csv"
-data_stop_path = "sources/hit_stopword"
+
+import os
+
+wd = os.path.dirname(os.path.abspath(__file__))
+data_path = wd + "/sources/weibo_senti_100k.csv"
+data_stop_path = wd + "/sources/hit_stopword"
 data_list = open(data_path).readlines()[1:]
 stops_word = open(data_stop_path).readlines()
 stops_word = [line.strip() for line in stops_word]
@@ -26,23 +30,18 @@ for item in data_list[:]:
         else:
             voc_dict[seg_item] = 1
 
-    print(content)
-    print(seg_res)
+    # print(content)
+    # print(seg_res)
 
 voc_list = sorted([_ for _ in voc_dict.items() if _[1] > min_seq],
                   key=lambda x:x[1],
                   reverse=True)[:top_n]
 
 voc_dict = {word_count[0]: idx for idx, word_count in enumerate(voc_list)}
-
 voc_dict.update({UNK:len(voc_dict), PAD:len(voc_dict) + 1})
-
 print(voc_dict)
 
-ff = open("sources/dict", "w")
+ff = open(wd + "/sources/dict", "w")
 for item in voc_dict.keys():
     ff.writelines("{},{}\n".format(item, voc_dict[item]))
 ff.close()
-
-
-
