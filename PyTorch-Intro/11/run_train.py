@@ -4,11 +4,14 @@ from torch import optim
 from models import Model
 from datasets import data_loader, text_ClS
 from configs import Config
+import os
+
+wd = os.path.dirname(os.path.abspath(__file__))
 
 cfg = Config()
-data_path = "sources/weibo_senti_100k.csv"
-data_stop_path = "sources/hit_stopword"
-dict_path = "sources/dict"
+data_path = wd + "/sources/weibo_senti_100k.csv"
+data_stop_path = wd + "/sources/hit_stopword"
+dict_path = wd + "/sources/dict"
 
 dataset = text_ClS(dict_path, data_path, data_stop_path)
 train_dataloader = data_loader(dataset, cfg)
@@ -43,5 +46,5 @@ for epoch in range(cfg.num_epochs):
 
     scheduler.step()
     if epoch % 10 == 0:
-        torch.save(model_text_cls.state_dict(), "models/{}.pth".format(epoch))
+        torch.save(model_text_cls.state_dict(), wd + "/models/{}.pth".format(epoch))
 

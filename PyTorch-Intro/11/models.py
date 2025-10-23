@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from configs import Config
+
 
 class Model(nn.Module):
     def __init__(self, config):
@@ -12,7 +14,8 @@ class Model(nn.Module):
         self.lstm = nn.LSTM(config.embed_size,
                             config.hidden_size,
                             config.num_layers,
-                            bidirectional=True, batch_first=True,
+                            bidirectional=True, 
+                            batch_first=True,
                             dropout=config.dropout)
         self.maxpool = nn.MaxPool1d(config.pad_size)
         self.fc = nn.Linear(config.hidden_size * 2 + config.embed_size,
@@ -32,7 +35,6 @@ class Model(nn.Module):
         return out
 
 if __name__ == "__main__":
-    from configs import Config
     cfg = Config()
     cfg.pad_size = 640
     model_textcls = Model(config=cfg)
@@ -40,8 +42,3 @@ if __name__ == "__main__":
     out_tensor = model_textcls.forward(input_tensor)
     print(out_tensor.size())
     print(out_tensor)
-
-
-
-
-
