@@ -81,8 +81,12 @@ if __name__ == "__main__":
     data, max_len_seq = load_data(data_path, data_stop_path)
     print("data size:", len(data))
     print("max seq len:", max_len_seq)
-    
-    # dict_path = wd + "/sources/dict"
+
+    dict_path = wd + "/sources/dict"
+    train_dataloader = data_loader(
+        text_ClS(dict_path, data_path, data_stop_path, max_len_seq), 
+        config=type('config', (object,), {'batch_size': 32, 'is_shuffle': True})()
+    )
     # train_dataloader = data_loader(data_path, data_stop_path, dict_path)
-    # for i, batch in enumerate(train_dataloader):
-    #     print(batch[1].size())
+    for i, batch in enumerate(train_dataloader):
+        print(batch[1].size())
