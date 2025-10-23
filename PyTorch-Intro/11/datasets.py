@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset, DataLoader
 import jieba
 import numpy as np
+import os
 
 def read_dict(voc_dict_path):
     voc_dict = {}
@@ -10,7 +11,7 @@ def read_dict(voc_dict_path):
         voc_dict[item[0]] = int(item[1].strip())
     return voc_dict
 
-def load_data(data_path,data_stop_path):
+def load_data(data_path, data_stop_path):
     data_list = open(data_path).readlines()[1:]
     stops_word = open(data_stop_path).readlines()
     stops_word = [line.strip() for line in stops_word]
@@ -74,9 +75,14 @@ def data_loader(dataset, config):
     return DataLoader(dataset, batch_size=config.batch_size, shuffle=config.is_shuffle)
 
 if __name__ == "__main__":
-    data_path = "sources/weibo_senti_100k.csv"
-    data_stop_path = "sources/hit_stopword"
-    dict_path = "sources/dict"
-    train_dataloader = data_loader(data_path, data_stop_path, dict_path)
-    for i, batch in enumerate(train_dataloader):
-        print(batch[1].size())
+    wd = os.path.dirname(os.path.abspath(__file__))
+    data_path = wd + "/sources/weibo_senti_100k.csv"
+    data_stop_path = wd + "/sources/hit_stopword"
+    data, max_len_seq = load_data(data_path, data_stop_path)
+    print("data size:", len(data))
+    print("max seq len:", max_len_seq)
+    
+    # dict_path = wd + "/sources/dict"
+    # train_dataloader = data_loader(data_path, data_stop_path, dict_path)
+    # for i, batch in enumerate(train_dataloader):
+    #     print(batch[1].size())
