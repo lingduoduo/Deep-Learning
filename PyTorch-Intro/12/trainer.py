@@ -6,13 +6,17 @@ from datasets import readLangs, SOS_token, EOS_token, MAX_LENGTH
 from models import EncoderRNN, AttenDecoderRNN
 from utils import timeSince
 import time
+import os
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 MAX_LENGTH = MAX_LENGTH + 1
 
 lang1 = "en"
 lang2 = "cn"
-path = "data/en-cn.txt"
+
+wd = os.path.dirname(os.path.abspath(__file__))
+path = wd + "/data/en-cn.txt"
 input_lang, output_lang, pairs = readLangs(lang1, lang2, path)
 print(len(pairs))
 print(input_lang.n_words)
@@ -28,6 +32,7 @@ def listTotensor(input_lang, data):
                                 dtype=torch.long,
                                 device=device).view(-1, 1)
     return input_tensor
+
 def tensorsFromPair(pair):
     input_tensor = listTotensor(input_lang, pair[0])
     output_tensor = listTotensor(output_lang, pair[1])
@@ -87,9 +92,6 @@ def loss_func(input_tensor,
     decoder_optimizer.step()
     return loss.item() / output_len
 
-
-
-
 hidden_size = 256
 encoder = EncoderRNN(input_lang.n_words, hidden_size).to(device)
 decoder = AttenDecoderRNN(hidden_size,
@@ -110,7 +112,7 @@ scheduler_decoder = torch.optim.lr_scheduler.StepLR(decoder_optimizer,
 
 criterion = nn.NLLLoss()
 
-n_iters = 1000000
+n_iters = 10000
 training_pairs = [
     tensorsFromPair(random.choice(pairs)) for i in range(n_iters)
 ]
@@ -146,9 +148,9 @@ for iter in range(1, n_iters + 1):
 
     if iter % save_every == 0:
         torch.save(encoder.state_dict(),
-                   "models/encoder_{}.pth".format(iter))
+                   wd + "models/encoder_{}.pth".format(iter))
         torch.save(decoder.state_dict(),
-                   "models/decoder_{}.pth".format(iter))
+                   wd + "models/decoder_{}.pth".format(iter))
 
     if iter % 10000 == 0:
         scheduler_encoder.step()
