@@ -1,6 +1,8 @@
 import jieba
 from utils import normalizeString
 from utils import cht_to_chs
+import os
+
 
 SOS_token = 0
 EOS_token = 1
@@ -60,7 +62,8 @@ def  readLangs(lang1, lang2, path):
 
 lang1 = "en"
 lang2 = "cn"
-path = "data/en-cn.txt"
+wd = os.path.dirname(os.path.abspath(__file__))
+path = wd + "/data/en-cn.txt"
 lang1_cls, lang2_cls, pairs = readLangs(lang1, lang2, path)
 
 print(len(pairs))
