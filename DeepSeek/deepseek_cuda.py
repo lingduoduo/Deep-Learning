@@ -14,7 +14,7 @@ if gpu_info.find('failed') >= 0:
 else:
   print(gpu_info)
 
-!pip install transformers accelerate
+# !pip install transformers accelerate
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
