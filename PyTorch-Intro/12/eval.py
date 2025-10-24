@@ -6,13 +6,17 @@ from datasets import readLangs, SOS_token, EOS_token, MAX_LENGTH
 from models import EncoderRNN, AttenDecoderRNN
 from utils import timeSince
 import time
+import os
+
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 MAX_LENGTH = MAX_LENGTH + 1
 
 lang1 = "en"
 lang2 = "cn"
-path = "data/en-cn.txt"
+wd = os.path.dirname(os.path.abspath(__file__))
+path = wd + "/data/en-cn.txt"
 input_lang, output_lang, pairs = readLangs(lang1, lang2, path)
 print(len(pairs))
 print(input_lang.n_words)
@@ -41,8 +45,8 @@ decoder = AttenDecoderRNN(hidden_size,
                           max_len = MAX_LENGTH,
                           dropout_p = 0.1).to(device)
 
-encoder.load_state_dict(torch.load("models/encoder_1000000.pth"))
-decoder.load_state_dict(torch.load("models/decoder_1000000.pth"))
+encoder.load_state_dict(torch.load(wd + "/models/encoder_1000000.pth"))
+decoder.load_state_dict(torch.load(wd + "/models/decoder_1000000.pth"))
 n_iters = 10
 
 train_sen_pairs = [
