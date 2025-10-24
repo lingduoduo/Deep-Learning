@@ -13,22 +13,26 @@ class EncoderRNN(nn.Module):
         self.gru = nn.GRU(hidden_size, hidden_size)
 
     def forward(self, input, hidden):
-        embedded = self.embedding(input).view(1, 1, -1)
-        output = embedded
-        output, hidden = self.gru(output, hidden)
-        return output, hidden
+        embedded = self.embedding(input).view(1, 1, -1) # LongTensor with seq_len=1, batch=1 -> [1, 1, H]
+        output, hidden = self.gru(embedded, hidden) # output: [1, 1, H], hidden: [1, 1, H]
+        return output, hidden # returns the step output and the new hidden state
 
     def initHidden(self):
+        # Creates the initial hidden state for a single-layer GRU
         return torch.zeros(1, 1, self.hidden_size, device=device)
 
 class DecoderRNN(nn.Module):
+    '''
+    Embeds previous output token, runs GRU, projects to vocabulary, applies log-softmax → log-probs.
+    '''
     def __init__(self, hidden_size, output_size):
         super(DecoderRNN, self).__init__()
+        self.hidden_size = hidden_size
         self.embedding = nn.Embedding(output_size, hidden_size)
         self.gru = nn.GRU(hidden_size, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)
         self.softmax = nn.LogSoftmax(dim=1)
-        
+
     def forward(self, input, hidden):
         output = self.embedding(input).view(1, 1 , -1)
         output = F.relu(output)
@@ -50,30 +54,35 @@ class AttenDecoderRNN(nn.Module):
         self.embedding = nn.Embedding(self.output_size, self.hidden_size)
         self.attn = nn.Linear(self.hidden_size * 2, self.max_len)
         self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
-
         self.dropout = nn.Dropout(self.dropout_p)
 
         self.gru = nn.GRU(self.hidden_size, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
 
     def forward(self, input, hidden, encoder_outputs):
-        embedded = self.embedding(input).view(1, 1, -1)
+        embedded = self.embedding(input).view(1, 1, -1)  # [1, 1, H]
         embedded = self.dropout(embedded)
 
+        # 1) Compute attention weights over encoder time steps (length = max_len)
         atten_weight = F.softmax(
-            self.attn(torch.cat([embedded[0], hidden[0]], 1)),
+            self.attn(torch.cat([embedded[0], hidden[0]], 1)), # [1, 2H] -> [1, max_len]
             dim=1
         )
 
+        # 2) Weighted sum of encoder outputs
         att_applied = torch.bmm(
-            atten_weight.unsqueeze(0),
-            encoder_outputs.unsqueeze(0)
-        )
-        output = torch.cat([embedded[0], att_applied[0]], dim=1)
-        output = self.attn_combine(output).unsqueeze(0)
+            atten_weight.unsqueeze(0),  # [1, 1, max_len]
+            encoder_outputs.unsqueeze(0) # [1, max_len, H]
+        )  # -> [1, 1, H]
+
+        # 3) Combine attended context with the current token embedding
+        output = torch.cat([embedded[0], att_applied[0]], dim=1) # [1, 2H]
+        output = self.attn_combine(output).unsqueeze(0) # [1, 1, H]
         output = F.relu(output)
-        output, hidden = self.gru(output, hidden)
-        output = F.log_softmax(self.out(output[0]), dim=1)
+
+        # 4) Decode and produce distribution over target vocab
+        output, hidden = self.gru(output, hidden) # output: [1, 1, H]
+        output = F.log_softmax(self.out(output[0]), dim=1) # [1, V]
 
         return output, hidden, atten_weight
 
