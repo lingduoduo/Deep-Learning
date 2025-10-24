@@ -32,6 +32,7 @@ def listTotensor(input_lang, data):
                                 dtype=torch.long,
                                 device=device).view(-1, 1)
     return input_tensor
+
 def tensorsFromPair(pair):
     input_tensor = listTotensor(input_lang, pair[0])
     output_tensor = listTotensor(output_lang, pair[1])
@@ -86,5 +87,3 @@ for i in range(n_iters):
     print(train_sen_pairs[i][0])
     print(train_sen_pairs[i][1])
     print(decoder_words)
-
-

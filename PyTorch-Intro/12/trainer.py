@@ -148,9 +148,9 @@ for iter in range(1, n_iters + 1):
 
     if iter % save_every == 0:
         torch.save(encoder.state_dict(),
-                   wd + "models/encoder_{}.pth".format(iter))
+                   wd + "/models/encoder_{}.pth".format(iter))
         torch.save(decoder.state_dict(),
-                   wd + "models/decoder_{}.pth".format(iter))
+                   wd + "/models/decoder_{}.pth".format(iter))
 
     if iter % 10000 == 0:
         scheduler_encoder.step()
