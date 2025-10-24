@@ -4,11 +4,14 @@ from torch import optim
 from models import Model
 from datasets import data_loader, text_ClS
 from configs import Config
+import os
+
+wd = os.path.dirname(os.path.abspath(__file__))
 
 cfg = Config()
-data_path = "sources/weibo_senti_100k.csv"
-data_stop_path = "sources/hit_stopword"
-dict_path = "sources/dict"
+data_path = wd + "/sources/weibo_senti_100k.csv"
+data_stop_path = wd + "/sources/hit_stopword"
+dict_path = wd + "/sources/dict"
 
 dataset = text_ClS(dict_path, data_path, data_stop_path)
 train_dataloader = data_loader(dataset, cfg)
@@ -18,7 +21,7 @@ print(cfg.pad_size)
 
 model_text_cls = Model(cfg)
 model_text_cls.to(cfg.devices)
-model_text_cls.load_state_dict(torch.load("models/10.pth"))
+model_text_cls.load_state_dict(torch.load(wd + "/models/10.pth"))
 
 for i, batch in enumerate(train_dataloader):
     label, data = batch
