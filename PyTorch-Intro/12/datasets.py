@@ -14,7 +14,8 @@ class Lang:
         self.word2index = {}
         self.word2count = {}
         self.index2word = {
-            0:"SOS", 1:"EOS"
+            0:"SOS",
+            1:"EOS"
         }
         self.n_words = 2
 
@@ -62,6 +63,7 @@ def  readLangs(lang1, lang2, path):
 
 lang1 = "en"
 lang2 = "cn"
+
 wd = os.path.dirname(os.path.abspath(__file__))
 path = wd + "/data/en-cn.txt"
 lang1_cls, lang2_cls, pairs = readLangs(lang1, lang2, path)
