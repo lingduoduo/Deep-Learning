@@ -38,9 +38,12 @@ def keyword_extractor(input_text):
     return response.choices[0].message.content
 
 if __name__ == "__main__":
+    # Test translation
     # while True:
     #     sentence = input("Please enter a sentence: ")
     #     print(translate('Hello DeepSeek'))
+
+    # Test DeepSeek Completions
     text = '''
     What is RAG?
     
