@@ -5,31 +5,36 @@ from PIL import Image
 import numpy as np
 import glob
 
+# Class names for CIFAR-10
 label_name = ["airplane", "automobile", "bird",
               "cat", "deer", "dog",
               "frog", "horse", "ship", "truck"]
 
-label_dict = {}
+# Map class names to numerical labels
+label_dict = {name: idx for idx, name in enumerate(label_name)}
 
-for idx, name in enumerate(label_name):
-    label_dict[name] = idx
-
+# Default image loader
 def default_loader(path):
     return Image.open(path).convert("RGB")
 
+# Data augmentation and preprocessing for training
 train_transform = transforms.Compose([
-    transforms.RandomCrop(28),  #先四周填充0，在吧图像随机裁剪成32*32
-    transforms.RandomHorizontalFlip(),  #图像一半的概率翻转，一半的概率不翻转
+    transforms.RandomCrop(28),   # Randomly crop the image to 28x28 pixels
+    transforms.RandomHorizontalFlip(),  # Randomly flip the image horizontally
     transforms.ToTensor(),
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), #R,G,B每层的归一化用到的均值和方差
+    transforms.Normalize((0.4914, 0.4822, 0.4465),
+                         (0.2023, 0.1994, 0.2010)),  # Normalize with mean and std for RGB channels
 ])
 
+# Preprocessing for testing (no augmentation)
 test_transform = transforms.Compose([
     transforms.Resize((28, 28)),
     transforms.ToTensor(),
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    transforms.Normalize((0.4914, 0.4822, 0.4465),
+                         (0.2023, 0.1994, 0.2010)),
 ])
 
+# Alternative (commented out) data augmentation example
 # train_transform = transforms.Compose([
 #     transforms.RandomResizedCrop((28, 28)),
 #     transforms.RandomHorizontalFlip(),
@@ -46,15 +51,19 @@ test_transform = transforms.Compose([
 # ])
 
 class MyDataset(Dataset):
-    def __init__(self, im_list,
-                 transform=None,
-                 loader = default_loader):
+    """
+    Custom dataset for loading CIFAR-10 images from folders.
+
+    Expected directory structure:
+        /path/to/CIFAR10/TRAIN/<class_name>/*.png
+        /path/to/CIFAR10/TEST/<class_name>/*.png
+    """
+    def __init__(self, im_list, transform=None, loader=default_loader):
         super(MyDataset, self).__init__()
         imgs = []
-
         for im_item in im_list:
-            #"/home/kuan/dataset/CIFAR10/TRAIN/" \
-            #"airplane/aeroplane_s_000021.png"
+            # Example path:
+            # "/home/ling/dataset/CIFAR10/TRAIN/airplane/aeroplane_s_000021.png"
             im_label_name = im_item.split("/")[-2]
             imgs.append([im_item, label_dict[im_label_name]])
 
@@ -67,38 +76,30 @@ class MyDataset(Dataset):
         im_data = self.loader(im_path)
         if self.transform is not None:
             im_data = self.transform(im_data)
-
         return im_data, im_label
 
     def __len__(self):
         return len(self.imgs)
 
+
+# Load image paths
 im_train_list = glob.glob("/home/ling/dataset/CIFAR10/TRAIN/*/*.png")
 im_test_list = glob.glob("/home/ling/dataset/CIFAR10/TEST/*/*.png")
 
-train_dataset = MyDataset(im_train_list,
-                         transform=train_transform)
-test_dataset = MyDataset(im_test_list,
-                        transform =test_transform)
+# Create datasets
+train_dataset = MyDataset(im_train_list, transform=train_transform)
+test_dataset = MyDataset(im_test_list, transform=test_transform)
 
+# Create dataloaders
 train_loader = DataLoader(dataset=train_dataset,
-                               batch_size=128,
-                               shuffle=True,
-                               num_workers=4)
+                          batch_size=128,
+                          shuffle=True,
+                          num_workers=4)
 
 test_loader = DataLoader(dataset=test_dataset,
-                               batch_size=128,
-                               shuffle=False,
-                               num_workers=4)
+                         batch_size=128,
+                         shuffle=False,
+                         num_workers=4)
 
-print("num_of_train", len(train_dataset))
-print("num_of_test", len(test_dataset))
-
-
-
-
-
-
-
-
-
+print("Number of training images:", len(train_dataset))
+print("Number of testing images:", len(test_dataset))
