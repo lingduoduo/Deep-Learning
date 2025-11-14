@@ -5,4 +5,5 @@ Tensorflow/.idea/
 .idea/
 data/
 .vscode
-
+.env
+__pycache__/
