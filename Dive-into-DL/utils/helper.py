@@ -2,6 +2,7 @@
 
 import inspect
 from typing import Iterable, Optional, Any, Tuple
+import collections
 
 import torch
 import torch.nn as nn
@@ -9,7 +10,6 @@ from torch.utils.data import TensorDataset, DataLoader
 
 import matplotlib.pyplot as plt
 from IPython import display
-import collections
 
 def add_to_class(Class):
     """Decorator: add a function as a method to an existing class.
@@ -85,9 +85,6 @@ class SGD(HyperParameters):
         for param in self.params:
             if param.grad is not None:
                 param.grad.zero_()
-
-
-from torch.utils.data import TensorDataset, DataLoader  # already imported at top
 
 class DataModule(HyperParameters):  # @save
     """The base class of data."""
@@ -252,10 +249,12 @@ class LinearRegression(Module):  # @save
     def __init__(self, num_inputs: int, lr: float):
         super().__init__()
         self.save_hyperparameters()
+        self.lr = lr
         # We can use nn.Linear since num_inputs is known
         self.net = nn.Linear(num_inputs, 1)
         self.net.weight.data.normal_(0, 0.01)
         self.net.bias.data.fill_(0)
+
 
     def forward(self, X: torch.Tensor) -> torch.Tensor:
         return self.net(X)
