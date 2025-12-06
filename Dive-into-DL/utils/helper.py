@@ -6,10 +6,18 @@ import collections
 
 import torch
 import torch.nn as nn
-from torch.utils.data import TensorDataset, DataLoader
+import torch.nn.functional as F
 
+
+from torch.utils.data import TensorDataset, DataLoader
 import matplotlib.pyplot as plt
 from IPython import display
+
+import torchvision
+from torchvision import transforms
+
+
+# Chapter 2
 
 def add_to_class(Class):
     """Decorator: add a function as a method to an existing class.
@@ -23,6 +31,7 @@ def add_to_class(Class):
         setattr(Class, func.__name__, func)
         return func
     return wrapper
+
 
 
 class HyperParameters:
@@ -67,6 +76,17 @@ class Module(torch.nn.Module, HyperParameters):
         X, y = batch
         l = self.loss(self(X), y)
         return l.mean()
+    
+    def plot(self, name, value, train=True):
+        if isinstance(value, torch.Tensor):
+            value = value.detach().cpu().item()
+
+        if not hasattr(self, "history"):
+            self.history = {"train": {}, "val": {}}
+
+        key = "train" if train else "val"
+        metric_dict = self.history[key].setdefault(name, [])
+        metric_dict.append(value)
 
 
 class SGD(HyperParameters):
@@ -222,6 +242,8 @@ class Trainer(HyperParameters):  # @save
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
 
 
+# Chapter 3
+
 class LinearRegressionScratch(Module):  # @save
     """The linear regression model implemented from scratch."""
 
@@ -356,3 +378,140 @@ class ProgressBoard(HyperParameters):
 #     # for future more complex data
 #     return batch
 
+
+
+# Chapter 4
+def show_images(imgs, num_rows, num_cols, titles=None, scale=1.5):  # @save
+    """Plot a list of images."""
+    figsize = (num_cols * scale, num_rows * scale)
+    _, axes = plt.subplots(num_rows, num_cols, figsize=figsize)
+    axes = axes.flatten()
+
+    for i, (ax, img) in enumerate(zip(axes, imgs)):
+        if torch.is_tensor(img):
+            img = img.numpy()
+        # For grayscale images
+        if img.ndim == 2:
+            ax.imshow(img, cmap='gray')
+        else:
+            ax.imshow(img)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        if titles and i < len(titles):
+            ax.set_title(titles[i])
+    plt.tight_layout()
+    return axes
+
+class FashionMNIST(DataModule):  #@save
+    """The Fashion-MNIST dataset."""
+    def __init__(self, batch_size=64, resize=(28, 28)):
+        super().__init__()
+        self.save_hyperparameters()
+        trans = transforms.Compose([transforms.Resize(resize),
+                                    transforms.ToTensor()])
+        self.train = torchvision.datasets.FashionMNIST(
+            root=self.root, train=True, transform=trans, download=True)
+        self.val = torchvision.datasets.FashionMNIST(
+            root=self.root, train=False, transform=trans, download=True)
+    
+    def get_dataloader(self, train: bool):
+        """Return the train or validation dataloader."""
+        dataset = self.train if train else self.val
+        return DataLoader(
+            dataset,
+            batch_size=self.batch_size,
+            shuffle=train,          # shuffle only for training
+            num_workers=self.num_workers,
+        )
+    
+    def text_labels(self, indices):
+        """Return text labels."""
+        labels = ['t-shirt', 'trouser', 'pullover', 'dress', 'coat',
+                'sandal', 'shirt', 'sneaker', 'bag', 'ankle boot']
+        return [labels[int(i)] for i in indices]
+    
+    def visualize(self, batch, nrows=1, ncols=8, labels=[]):
+        X, y = batch
+        if not labels:
+            labels = self.text_labels(y)
+        show_images(X.squeeze(1), nrows, ncols, titles=labels)
+
+class Classifier(Module):  #@save
+    """The base class of classification models."""
+    def validation_step(self, batch):
+        """Validation step used by all classifiers."""
+        X, y = batch
+        Y_hat = self(X)
+
+        # Compute metrics
+        loss = self.loss(Y_hat, y)
+        acc = self.accuracy(Y_hat, y)
+
+        # Log metrics (plot is guaranteed to exist)
+        self.plot("loss", loss, train=False)
+        self.plot("acc", acc, train=False)
+
+        # Return loss so Trainer.fit can call .item() on it
+        return loss
+
+class SoftmaxRegressionScratch(Classifier):
+    def __init__(self, num_inputs, num_outputs, lr, sigma=0.01):
+        super().__init__()
+        self.save_hyperparameters()
+        self.W = torch.normal(0, sigma, size=(num_inputs, num_outputs),
+                              requires_grad=True)
+        self.b = torch.zeros(num_outputs, requires_grad=True)
+    
+    def forward(self, X):
+        X = X.reshape(X.shape[0], -1)
+        return X @ self.W + self.b  # logits
+
+    def parameters(self):
+        return [self.W, self.b]
+
+    def parameters(self):
+        return [self.W, self.b]
+    
+    def loss(self, y_hat, y):
+        return F.cross_entropy(y_hat, y)
+    
+    def configure_optimizers(self):
+        return SGD(self.parameters(), self.lr)
+    
+    def validation_step(self, batch):
+        X, y = batch
+        y_hat = self(X)
+        return self.loss(y_hat, y)
+
+class SoftmaxRegression(Classifier):  # @save
+    def __init__(self, num_outputs: int, lr: float):
+        super().__init__()
+        self.save_hyperparameters()
+        # High-level network: flatten then linear layer
+        self.net = nn.Sequential(
+            nn.Flatten(),
+            nn.LazyLinear(num_outputs)
+        )
+
+    def forward(self, X):
+        # X: (batch, 1, 28, 28) -> net -> logits (batch, num_outputs)
+        return self.net(X)
+
+    def loss(self, y_hat, y):
+        # Cross-entropy on logits
+        return F.cross_entropy(y_hat, y)
+
+    def configure_optimizers(self):
+        # Use standard PyTorch SGD on all trainable parameters
+        return torch.optim.SGD(self.parameters(), lr=self.lr)
+
+    def validation_step(self, batch):
+        """
+        Validation step that returns loss (for Trainer),
+        and can also log metrics if plot/accuracy are available.
+        """
+        X, y = batch
+        y_hat = self(X)
+        loss = self.loss(y_hat, y)
+
+        return loss
