@@ -381,6 +381,7 @@ class ProgressBoard(HyperParameters):
 
 
 # Chapter 4
+
 def show_images(imgs, num_rows, num_cols, titles=None, scale=1.5):  # @save
     """Plot a list of images."""
     figsize = (num_cols * scale, num_rows * scale)
@@ -515,3 +516,128 @@ class SoftmaxRegression(Classifier):  # @save
         loss = self.loss(y_hat, y)
 
         return loss
+
+# Chapter 5
+
+class MLPScratch(Classifier):
+    def __init__(self, num_inputs, num_outputs, num_hiddens, lr, sigma=0.01):
+        super().__init__()
+        self.save_hyperparameters()
+
+        # Parameters of a 1-hidden-layer MLP
+        self.W1 = nn.Parameter(torch.randn(num_inputs, num_hiddens) * sigma)
+        self.b1 = nn.Parameter(torch.zeros(num_hiddens))
+        self.W2 = nn.Parameter(torch.randn(num_hiddens, num_outputs) * sigma)
+        self.b2 = nn.Parameter(torch.zeros(num_outputs))
+
+    def forward(self, X):
+        # X: (batch, 1, 28, 28) -> flatten -> hidden -> logits
+        X = X.reshape(X.shape[0], -1)        # (batch, num_inputs)
+        H = torch.relu(X @ self.W1 + self.b1)  # (batch, num_hiddens)
+        out = H @ self.W2 + self.b2            # (batch, num_outputs)
+        return out
+
+    def loss(self, y_hat, y):
+        # Cross-entropy on logits
+        return F.cross_entropy(y_hat, y)
+
+    def configure_optimizers(self):
+        # Use standard PyTorch SGD on all trainable parameters
+        return SGD(self.parameters(), lr=self.lr)
+
+    def validation_step(self, batch):
+        X, y = batch
+        y_hat = self(X)
+        loss = self.loss(y_hat, y)
+        return loss
+
+
+class MLP(Classifier):
+    def __init__(self, num_outputs, num_hiddens, lr):
+        super().__init__()
+        self.save_hyperparameters()
+
+        self.net = nn.Sequential(
+            nn.Flatten(),
+            nn.LazyLinear(num_hiddens),
+            nn.ReLU(),
+            nn.LazyLinear(num_outputs)
+        )
+
+    def forward(self, X):
+        return self.net(X)
+
+    def loss(self, y_hat, y):
+        return F.cross_entropy(y_hat, y)
+
+    def configure_optimizers(self):
+        return torch.optim.SGD(self.parameters(), lr=self.lr)
+
+    def validation_step(self, batch):
+        X, y = batch
+        return self.loss(self(X), y)
+
+class DropoutMLPScratch(Classifier):
+    def __init__(self, num_outputs, num_hiddens_1, num_hiddens_2,
+                 dropout_1, dropout_2, lr):
+        super().__init__()
+        self.save_hyperparameters()  # saves lr, dropout_1, dropout_2, etc.
+
+        self.lin1 = nn.LazyLinear(num_hiddens_1)
+        self.lin2 = nn.LazyLinear(num_hiddens_2)
+        self.lin3 = nn.LazyLinear(num_outputs)
+        self.relu = nn.ReLU()
+
+    def forward(self, X):
+        # Flatten: (batch, 1, 28, 28) -> (batch, 784)
+        X = X.reshape(X.shape[0], -1)
+
+        H1 = self.relu(self.lin1(X))
+        H1 = F.dropout(H1, p=self.dropout_1, training=self.training)
+
+        H2 = self.relu(self.lin2(H1))
+        H2 = F.dropout(H2, p=self.dropout_2, training=self.training)
+
+        return self.lin3(H2)
+
+    def loss(self, y_hat, y):
+        return F.cross_entropy(y_hat, y)
+
+    def configure_optimizers(self):
+        return SGD(self.parameters(), lr=self.lr)
+
+    def validation_step(self, batch):
+        X, y = batch
+        y_hat = self(X)
+        return self.loss(y_hat, y)
+    
+class DropoutMLP(Classifier):
+    def __init__(self, num_outputs, num_hiddens_1, num_hiddens_2,
+                 dropout_1, dropout_2, lr):
+        super().__init__()
+        self.save_hyperparameters()
+
+        self.net = nn.Sequential(
+            nn.Flatten(),
+            nn.LazyLinear(num_hiddens_1),
+            nn.ReLU(),
+            nn.Dropout(dropout_1),
+            nn.LazyLinear(num_hiddens_2),
+            nn.ReLU(),
+            nn.Dropout(dropout_2),
+            nn.LazyLinear(num_outputs),
+        )
+
+    def forward(self, X):
+        return self.net(X)
+
+    def loss(self, y_hat, y):
+        return F.cross_entropy(y_hat, y)
+
+    def configure_optimizers(self):
+        return SGD(self.parameters(), lr=self.lr)
+
+    def validation_step(self, batch):
+        X, y = batch
+        return self.loss(self(X), y)
+   
