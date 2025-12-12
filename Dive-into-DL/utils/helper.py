@@ -16,7 +16,6 @@ from IPython import display
 import torchvision
 from torchvision import transforms
 
-
 # Chapter 2
 
 def add_to_class(Class):
@@ -55,38 +54,27 @@ class Module(torch.nn.Module, HyperParameters):
     def __init__(self):
         super().__init__()
 
-    def loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Default L2 loss assuming matching shapes."""
+    def loss(self, y_hat, y):
         return (y_hat - y) ** 2 / 2
 
-    def forward(self, X: torch.Tensor) -> torch.Tensor:
-        raise NotImplementedError("forward() not implemented")
+    def forward(self, X):
+        raise NotImplementedError
 
-    def __call__(self, X: torch.Tensor) -> torch.Tensor:
-        return super().__call__(X)
-
-    def training_step(self, batch) -> torch.Tensor:
-        """Default training step: compute loss on a batch (X, y)."""
+    def training_step(self, batch):
         X, y = batch
-        l = self.loss(self(X), y)
-        return l.mean()
+        return self.loss(self(X), y).mean()
 
-    def validation_step(self, batch) -> torch.Tensor:
-        """Optional validation step; by default, same as training loss."""
+    def validation_step(self, batch):
         X, y = batch
-        l = self.loss(self(X), y)
-        return l.mean()
-    
+        return self.loss(self(X), y).mean()
+
     def plot(self, name, value, train=True):
         if isinstance(value, torch.Tensor):
             value = value.detach().cpu().item()
-
         if not hasattr(self, "history"):
             self.history = {"train": {}, "val": {}}
-
         key = "train" if train else "val"
-        metric_dict = self.history[key].setdefault(name, [])
-        metric_dict.append(value)
+        self.history[key].setdefault(name, []).append(value)
 
 
 class SGD(HyperParameters):
@@ -437,23 +425,67 @@ class FashionMNIST(DataModule):  #@save
             labels = self.text_labels(y)
         show_images(X.squeeze(1), nrows, ncols, titles=labels)
 
-class Classifier(Module):  #@save
+
+class Classifier(Module):  # @save
     """The base class of classification models."""
+
+    # ---- core classifier behavior ----
+    def loss(self, y_hat, y):
+        # y_hat: (B, C), y: (B,)
+        return F.cross_entropy(y_hat, y)
+
+    def accuracy(self, y_hat, y):
+        preds = y_hat.argmax(dim=1)
+        return (preds == y).float().mean()
+
+    def training_step(self, batch):
+        X, y = batch
+        y_hat = self(X)
+        loss = self.loss(y_hat, y)
+        acc = self.accuracy(y_hat, y)
+        self.plot("loss", loss, train=True)
+        self.plot("acc", acc, train=True)
+        return loss  # scalar tensor
+
     def validation_step(self, batch):
         """Validation step used by all classifiers."""
         X, y = batch
-        Y_hat = self(X)
+        y_hat = self(X)
 
-        # Compute metrics
-        loss = self.loss(Y_hat, y)
-        acc = self.accuracy(Y_hat, y)
+        loss = self.loss(y_hat, y)
+        acc = self.accuracy(y_hat, y)
 
-        # Log metrics (plot is guaranteed to exist)
         self.plot("loss", loss, train=False)
         self.plot("acc", acc, train=False)
-
-        # Return loss so Trainer.fit can call .item() on it
         return loss
+
+    # ---- utilities you already had ----
+    def apply_init(self, inputs, init_fn=None):
+        self.eval()
+        with torch.no_grad():
+            if isinstance(inputs, (list, tuple)):
+                _ = self(*inputs)
+            else:
+                _ = self(inputs)
+
+        if init_fn is not None:
+            if hasattr(self, "net"):
+                self.net.apply(init_fn)
+            else:
+                self.apply(init_fn)
+        return self
+
+    def save_hyperparameters(self, ignore=()):
+        frame = inspect.currentframe().f_back
+        args, _, _, local_vars = inspect.getargvalues(frame)
+        ignore = set(ignore)
+        self.hparams = {
+            k: local_vars[k]
+            for k in args
+            if k != "self" and k not in ignore
+        }
+        return self
+
 
 class SoftmaxRegressionScratch(Classifier):
     def __init__(self, num_inputs, num_outputs, lr, sigma=0.01):
@@ -641,3 +673,22 @@ class DropoutMLP(Classifier):
         X, y = batch
         return self.loss(self(X), y)
    
+# Chapter 7
+
+def corr2d(X, K):  #@save
+    """Compute 2D cross-correlation."""
+    h, w = K.shape
+    Y = torch.zeros((X.shape[0] - h + 1, X.shape[1] - w + 1))
+    for i in range(Y.shape[0]):
+        for j in range(Y.shape[1]):
+            Y[i, j] = (X[i:i + h, j:j + w] * K).sum()
+    return Y
+
+class Conv2D(nn.Module):
+    def __init__(self, kernel_size):
+        super().__init__()
+        self.weight = nn.Parameter(torch.rand(kernel_size))
+        self.bias = nn.Parameter(torch.zeros(1))
+
+    def forward(self, x):
+        return corr2d(x, self.weight) + self.bias
