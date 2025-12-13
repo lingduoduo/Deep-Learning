@@ -75,7 +75,22 @@ class Module(torch.nn.Module, HyperParameters):
             self.history = {"train": {}, "val": {}}
         key = "train" if train else "val"
         self.history[key].setdefault(name, []).append(value)
+    
+    def layer_summary(self, input_shape):
+        """
+        Print each layer's output shape.
+        Works with Lazy layers (runs a dummy forward).
+        """
+        if not hasattr(self, "net"):
+            raise AttributeError("layer_summary requires self.net")
 
+        self.eval()
+        X = torch.zeros(*input_shape)
+
+        with torch.no_grad():
+            for layer in self.net:
+                X = layer(X)
+                print(f"{layer.__class__.__name__:25s} -> {tuple(X.shape)}")
 
 class SGD(HyperParameters):
     """Minibatch stochastic gradient descent for a list of tensors."""
@@ -675,7 +690,7 @@ class DropoutMLP(Classifier):
    
 # Chapter 7
 
-def corr2d(X, K):  #@save
+def corr2d(X, K):  
     """Compute 2D cross-correlation."""
     h, w = K.shape
     Y = torch.zeros((X.shape[0] - h + 1, X.shape[1] - w + 1))
@@ -692,3 +707,68 @@ class Conv2D(nn.Module):
 
     def forward(self, x):
         return corr2d(x, self.weight) + self.bias
+
+class LeNet(Classifier):
+    def __init__(self, lr=0.1, num_classes=10):
+        super().__init__()
+        self.save_hyperparameters()
+        self.net = nn.Sequential(
+            nn.LazyConv2d(6, kernel_size=5, padding=2), nn.Sigmoid(),
+            nn.AvgPool2d(2, 2),
+            nn.LazyConv2d(16, kernel_size=5), nn.Sigmoid(),
+            nn.AvgPool2d(2, 2),
+            nn.Flatten(),
+            nn.LazyLinear(120), nn.Sigmoid(),
+            nn.LazyLinear(84), nn.Sigmoid(),
+            nn.LazyLinear(num_classes),
+        )
+
+    def forward(self, X):
+        return self.net(X)
+    
+    def configure_optimizers(self):
+        return torch.optim.SGD(self.parameters(), lr=self.hparams["lr"])
+
+def init_cnn(m):
+    # Conv: normal + lazy
+    if isinstance(m, (nn.Conv2d, nn.LazyConv2d)):
+        # after a dummy forward, m.weight is a real Parameter
+        nn.init.xavier_uniform_(m.weight)
+        if m.bias is not None:
+            nn.init.zeros_(m.bias)
+
+    # Linear: normal + lazy
+    elif isinstance(m, (nn.Linear, nn.LazyLinear)):
+        nn.init.xavier_uniform_(m.weight)
+        if m.bias is not None:
+            nn.init.zeros_(m.bias)
+
+
+class ResNeXtBlock(nn.Module):  
+    """The ResNeXt block."""
+    def __init__(self, num_channels, groups, bot_mul, use_1x1conv=False,
+                 strides=1):
+        super().__init__()
+        bot_channels = int(round(num_channels * bot_mul))
+        self.conv1 = nn.LazyConv2d(bot_channels, kernel_size=1, stride=1)
+        self.conv2 = nn.LazyConv2d(bot_channels, kernel_size=3,
+                                   stride=strides, padding=1,
+                                   groups=bot_channels//groups)
+        self.conv3 = nn.LazyConv2d(num_channels, kernel_size=1, stride=1)
+        self.bn1 = nn.LazyBatchNorm2d()
+        self.bn2 = nn.LazyBatchNorm2d()
+        self.bn3 = nn.LazyBatchNorm2d()
+        if use_1x1conv:
+            self.conv4 = nn.LazyConv2d(num_channels, kernel_size=1,
+                                       stride=strides)
+            self.bn4 = nn.LazyBatchNorm2d()
+        else:
+            self.conv4 = None
+
+    def forward(self, X):
+        Y = F.relu(self.bn1(self.conv1(X)))
+        Y = F.relu(self.bn2(self.conv2(Y)))
+        Y = self.bn3(self.conv3(Y))
+        if self.conv4:
+            X = self.bn4(self.conv4(X))
+        return F.relu(Y + X)
