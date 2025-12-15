@@ -1,5 +1,10 @@
 # utils/helper.py
 
+import os
+import re
+import hashlib
+import urllib.request
+
 import inspect
 from typing import Iterable, Optional, Any, Tuple
 import collections
@@ -8,13 +13,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 from torch.utils.data import TensorDataset, DataLoader
 import matplotlib.pyplot as plt
 from IPython import display
+import numpy as np
+plt.figurefigsize=(6, 3)
 
 import torchvision
 from torchvision import transforms
+
 
 # Chapter 2
 
@@ -356,31 +363,34 @@ class ProgressBoard(HyperParameters):
         display.clear_output(wait=True)
 
 
-# from utils.helper import (
-#     HyperParameters, Module, add_to_class,
-#     SyntheticRegressionData, Trainer,
-#     LinearRegressionScratch, LinearRegression
-# )
+def plot(X, Y=None, xlabel=None, ylabel=None,
+         legend=None, xscale=None, yscale=None,
+         figsize=(6, 3), xlim=None):
+    # If only X is given, plot X against its index (Zipf plot case)
+    if Y is None:
+        X = np.asarray(X)
+        plt.plot(np.arange(len(X)), X)
+    else:
+        if isinstance(Y, (list, tuple)):
+            for y in Y:
+                plt.plot(X, y)
+        else:
+            plt.plot(X, Y)
 
-# # Scratch version
-# model_scratch = LinearRegressionScratch(num_inputs=2, lr=0.03)
-# data = SyntheticRegressionData(w=torch.tensor([2, -3.4]), b=4.2)
-# trainer = Trainer(max_epochs=3)
-# trainer.fit(model_scratch, data)
+    if xscale is not None:
+        plt.xscale(xscale)
+    if yscale is not None:
+        plt.yscale(yscale)
 
-# # High-level nn.Module version
-# model_nn = LinearRegression(num_inputs=2, lr=0.03)
-# trainer = Trainer(max_epochs=3)
-# trainer.fit(model_nn, data)
-# w, b = model_nn.get_w_b()
-# print("learned w:", w, "learned b:", b)
+    if legend:
+        plt.legend(legend)
 
+    if xlim is not None:
+        plt.xlim(xlim)
 
-# @add_to_class(Trainer)
-# def prepare_batch(self, batch):
-#     # for future more complex data
-#     return batch
-
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.show()
 
 
 # Chapter 4
@@ -772,3 +782,215 @@ class ResNeXtBlock(nn.Module):
         if self.conv4:
             X = self.bn4(self.conv4(X))
         return F.relu(Y + X)
+
+# Chapter 9
+
+class Vocab:  # @save
+    """Vocabulary for text."""
+    def __init__(self, tokens=None, min_freq=0, reserved_tokens=None):
+        tokens = [] if tokens is None else tokens
+        reserved_tokens = [] if reserved_tokens is None else reserved_tokens
+
+        # Flatten a 2D list if needed
+        if tokens and isinstance(tokens[0], list):
+            tokens = [token for line in tokens for token in line]
+
+        # Count token frequencies
+        counter = collections.Counter(tokens)
+        self.token_freqs = sorted(counter.items(), key=lambda x: x[1], reverse=True)
+
+        # Keep a stable order: <unk>, reserved tokens, then by frequency
+        self.idx_to_token = ['<unk>'] + list(reserved_tokens)
+        for token, freq in self.token_freqs:
+            if freq < min_freq:
+                break
+            if token not in self.idx_to_token:
+                self.idx_to_token.append(token)
+
+        self.token_to_idx = {token: idx for idx, token in enumerate(self.idx_to_token)}
+
+    def __len__(self):
+        return len(self.idx_to_token)
+
+    @property
+    def unk(self):
+        return self.token_to_idx['<unk>']
+
+    def __getitem__(self, tokens):
+        if not isinstance(tokens, (list, tuple)):
+            return self.token_to_idx.get(tokens, self.unk)
+        return [self.__getitem__(token) for token in tokens]
+
+    def to_tokens(self, indices):
+        if hasattr(indices, '__len__') and len(indices) > 1:
+            return [self.idx_to_token[int(index)] for index in indices]
+        return self.idx_to_token[int(indices)]
+
+
+class TimeMachine(DataModule):
+    """The Time Machine dataset."""
+
+    def __init__(self, batch_size=32, num_steps=35, num_train=10000, num_val=5000,
+                 root="./data", token="char", min_freq=0, reserved_tokens=None):
+        super().__init__()
+        self.batch_size = batch_size
+        self.num_steps = num_steps
+        self.num_train = num_train
+        self.num_val = num_val
+        self.root = root
+
+        # IMPORTANT: set token BEFORE build() is called
+        self.token = token  # "char" or "word"
+        self.min_freq = min_freq
+        self.reserved_tokens = [] if reserved_tokens is None else reserved_tokens
+
+        corpus, self.vocab = self.build(self._download())
+
+        # Create training samples: X is length num_steps, Y is X shifted by 1
+        array = torch.tensor(
+            [corpus[i:i + num_steps + 1] for i in range(len(corpus) - num_steps)],
+            dtype=torch.long
+        )
+        self.X, self.Y = array[:, :-1], array[:, 1:]
+
+    def _download(self):
+        DATA_URL = "http://d2l-data.s3-accelerate.amazonaws.com/"
+        fname = "timemachine.txt"
+        sha1 = "090b5e7e70c295757f55df93cb0a180b9691891a"
+
+        os.makedirs(self.root, exist_ok=True)
+        path = os.path.join(self.root, fname)
+        url = DATA_URL + fname
+
+        # Download if needed
+        if not os.path.exists(path):
+            print(f"Downloading {url}...")
+            urllib.request.urlretrieve(url, path)
+
+        # Verify SHA-1 checksum
+        with open(path, "rb") as f:
+            data = f.read()
+            hash_val = hashlib.sha1(data).hexdigest()
+            if hash_val != sha1:
+                raise RuntimeError(f"SHA-1 mismatch: expected {sha1}, got {hash_val}")
+
+        # Return raw text
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    def _preprocess(self, text):
+        return re.sub('[^A-Za-z]+', ' ', text).lower()
+
+    def _tokenize(self, text: str):
+        token = getattr(self, "token", "char")
+        if token == "word":
+            return text.split()
+        return list(text)
+
+    def build(self, raw_text: str, vocab=None):
+        tokens = self._tokenize(self._preprocess(raw_text))
+        if vocab is None:
+            vocab = Vocab(tokens, min_freq=self.min_freq, reserved_tokens=self.reserved_tokens)
+        corpus = vocab[tokens]  # list[int]
+        return corpus, vocab
+
+    def train_dataloader(self):
+        i = slice(0, min(self.num_train, len(self.X)))
+        ds = TensorDataset(self.X[i], self.Y[i])
+        return DataLoader(ds, batch_size=self.batch_size, shuffle=True)
+
+    def val_dataloader(self):
+        start = min(self.num_train, len(self.X))
+        end = min(self.num_train + self.num_val, len(self.X))
+        ds = TensorDataset(self.X[start:end], self.Y[start:end])
+        return DataLoader(ds, batch_size=self.batch_size, shuffle=False)
+
+
+
+class RNNLMScratch(Classifier):
+    """The RNN-based language model implemented from scratch (no @add_to_class)."""
+
+    def __init__(self, rnn, vocab_size, lr=0.01):
+        super().__init__()
+        self.rnn = rnn
+        self.vocab_size = vocab_size
+        self.lr = lr
+        self.save_hyperparameters()
+        self.init_params()
+
+    def init_params(self):
+        self.W_hq = nn.Parameter(
+            torch.randn(self.rnn.num_hiddens, self.vocab_size) * self.rnn.sigma
+        )
+        self.b_q = nn.Parameter(torch.zeros(self.vocab_size))
+
+    def one_hot(self, X):
+        # X: (batch_size, num_steps)
+        # Return: (num_steps, batch_size, vocab_size)
+        return F.one_hot(X.T, self.vocab_size).to(torch.float32)
+
+    def output_layer(self, rnn_outputs):
+        # rnn_outputs: (num_steps, batch_size, num_hiddens) OR iterable of (batch, hidden)
+        if isinstance(rnn_outputs, torch.Tensor):
+            # (T, B, H) @ (H, V) -> (T, B, V) -> transpose -> (B, T, V)
+            out = torch.matmul(rnn_outputs, self.W_hq) + self.b_q
+            return out.transpose(0, 1)
+        else:
+            # list/tuple of (B, H) -> stack -> (B, T, V)
+            outputs = [torch.matmul(H, self.W_hq) + self.b_q for H in rnn_outputs]
+            return torch.stack(outputs, dim=1)
+
+    def forward(self, X, state=None):
+        embs = self.one_hot(X)
+        rnn_outputs, state = self.rnn(embs, state)
+        return self.output_layer(rnn_outputs)
+
+    def loss(self, y_hat, y):
+        # y_hat: (B, T, V), y: (B, T)
+        return F.cross_entropy(y_hat.reshape(-1, self.vocab_size), y.reshape(-1))
+
+    def training_step(self, batch):
+        X, y = batch
+        l = self.loss(self(X), y)
+        self.plot('ppl', torch.exp(l), train=True)
+        return l  # keep returning loss
+
+    def validation_step(self, batch):
+        X, y = batch
+        l = self.loss(self(X), y)
+        self.plot('ppl', torch.exp(l), train=False)
+        return l  
+
+    def configure_optimizers(self):
+        return torch.optim.SGD(self.parameters(), lr=self.lr)
+    
+    def predict(self, prefix, num_preds, vocab, device=None):
+        self.eval()
+        if device is None:
+            device = next(self.parameters()).device
+
+        state = None
+        outputs = [vocab[prefix[0]]]
+
+        with torch.no_grad():
+            for i in range(len(prefix) + num_preds - 1):
+                # last generated token id -> shape (B=1, T=1)
+                X = torch.tensor([[outputs[-1]]], device=device, dtype=torch.long)
+
+                # one-hot -> (T=1, B=1, V)
+                embs = self.one_hot(X)
+
+                # rnn -> rnn_outputs: (T=1, B=1, H)
+                rnn_outputs, state = self.rnn(embs, state)
+
+                if i < len(prefix) - 1:
+                    # warm-up: force next char from prefix
+                    outputs.append(vocab[prefix[i + 1]])
+                else:
+                    # predict next token
+                    Y = self.output_layer(rnn_outputs)   # (B=1, T=1, V)
+                    next_id = int(Y.argmax(dim=2).reshape(-1)[0])
+                    outputs.append(next_id)
+
+        return ''.join([vocab.idx_to_token[i] for i in outputs])
+
