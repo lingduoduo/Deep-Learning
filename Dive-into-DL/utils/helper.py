@@ -7,6 +7,8 @@ import urllib.request
 import zipfile
 import requests
 import inspect
+import time
+
 
 from typing import Iterable, Optional, Any, Tuple, List
 import collections
@@ -19,13 +21,10 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 
 import matplotlib.pyplot as plt
-from IPython import display
-
 plt.figurefigsize=(6, 3)
 
 import torchvision
 from torchvision import transforms
-
 
 # Chapter 2
 
@@ -1912,3 +1911,263 @@ class ViT(Classifier):
     
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
+
+# Chapter 12
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+def train_2d(trainer, steps=20, f_grad=None):  #@save
+    """Optimize a 2D objective function with a customized trainer."""
+    # `s1` and `s2` are internal state variables that will be used in Momentum, adagrad, RMSProp
+    x1, x2, s1, s2 = -5, -2, 0, 0
+    results = [(x1, x2)]
+    for i in range(steps):
+        if f_grad:
+            x1, x2, s1, s2 = trainer(x1, x2, s1, s2, f_grad)
+        else:
+            x1, x2, s1, s2 = trainer(x1, x2, s1, s2)
+        results.append((x1, x2))
+    print(f'epoch {i + 1}, x1: {float(x1):f}, x2: {float(x2):f}')
+    return results
+
+
+def show_trace_2d(f, results):
+    """Show the trace of 2D variables during optimization (no d2l)."""
+    # results: list of (x1, x2)
+    xs, ys = zip(*results)
+
+    plt.figure(figsize=(4.5, 3))
+    plt.plot(xs, ys, '-o', color='#ff7f0e')
+
+    # Create meshgrid
+    x1 = torch.arange(-5.5, 1.0, 0.1)
+    x2 = torch.arange(-3.0, 1.0, 0.1)
+    X1, X2 = torch.meshgrid(x1, x2, indexing='ij')
+
+    # Evaluate function
+    Z = f(X1, X2)
+
+    # Convert to numpy safely
+    if isinstance(Z, torch.Tensor):
+        Z = Z.detach().cpu().numpy()
+        X1 = X1.detach().cpu().numpy()
+        X2 = X2.detach().cpu().numpy()
+
+    plt.contour(X1, X2, Z, colors='#1f77b4')
+    plt.xlabel('x1')
+    plt.ylabel('x2')
+    plt.tight_layout()
+    plt.show()
+
+class Timer:  
+    """Record multiple running times."""
+    def __init__(self):
+        self.times = []
+        self.start()
+
+    def start(self):
+        """Start the timer."""
+        self.tik = time.time()
+
+    def stop(self):
+        """Stop the timer and record the time in a list."""
+        self.times.append(time.time() - self.tik)
+        return self.times[-1]
+
+    def avg(self):
+        """Return the average time."""
+        return sum(self.times) / len(self.times)
+
+    def sum(self):
+        """Return the sum of time."""
+        return sum(self.times)
+
+    def cumsum(self):
+        """Return the accumulated time."""
+        return np.array(self.times).cumsum().tolist()
+
+
+AIRFOIL_URL = "http://d2l-data.s3-accelerate.amazonaws.com/airfoil_self_noise.dat"
+AIRFOIL_SHA1 = "76e5be1548fd8222e5074cf0faae75edff8cf93f"
+
+
+def _sha1sum(path: str) -> str:
+    h = hashlib.sha1()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def download(url: str, root: str = "./data", filename: str | None = None, sha1: str | None = None) -> str:
+    """Download `url` into `root` and optionally verify sha1. Return local filepath."""
+    os.makedirs(root, exist_ok=True)
+    if filename is None:
+        filename = os.path.basename(url)
+    path = os.path.join(root, filename)
+
+    if not os.path.exists(path):
+        r = requests.get(url, stream=True, timeout=60)
+        r.raise_for_status()
+        with open(path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=1 << 20):
+                if chunk:
+                    f.write(chunk)
+
+    if sha1 is not None:
+        got = _sha1sum(path)
+        if got != sha1:
+            raise RuntimeError(f"SHA1 mismatch for {path}: got {got}, expected {sha1}")
+
+    return path
+
+
+def load_array(data_arrays, batch_size: int, is_train: bool = True) -> DataLoader:
+    """Construct a PyTorch DataLoader from (features, labels)."""
+    X, y = data_arrays
+    dataset = TensorDataset(X, y)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=is_train)
+
+
+#@save
+def get_data_ch11(batch_size: int = 10, n: int = 1500, root: str = "./data"):
+    path = download(AIRFOIL_URL, root=root, filename="airfoil_self_noise.dat", sha1=AIRFOIL_SHA1)
+
+    data = np.genfromtxt(path, dtype=np.float32, delimiter="\t")
+    data = torch.from_numpy(data)
+
+    # standardize each column
+    data = (data - data.mean(dim=0)) / data.std(dim=0, unbiased=False)
+
+    X = data[:n, :-1]
+    y = data[:n, -1]
+    data_iter = load_array((X, y), batch_size=batch_size, is_train=True)
+    return data_iter, data.shape[1] - 1
+
+
+# --- helpers (no d2l) ---
+
+def linreg(X, w, b):
+    return X @ w + b
+
+def squared_loss(y_hat, y):
+    # y_hat: (B,1), y: (B,) or (B,1)
+    y = y.reshape(y_hat.shape)
+    return 0.5 * (y_hat - y) ** 2
+
+def evaluate_loss(net, data_iter, loss_fn):
+    total_loss, total_n = 0.0, 0
+    with torch.no_grad():
+        for X, y in data_iter:
+            l = loss_fn(net(X), y)
+            total_loss += float(l.sum())
+            total_n += y.numel()
+    return total_loss / total_n
+
+
+class Animator:
+    """
+    Minimal drop-in for d2l.Animator used here:
+      - stores X and Y
+      - add(x, (y,))
+      - optional live plotting
+    """
+    def __init__(self, xlabel=None, ylabel=None, xlim=None, ylim=None):
+        self.xlabel, self.ylabel = xlabel, ylabel
+        self.xlim, self.ylim = xlim, ylim
+        self.X = []
+        self.Y = [[]]  # match your access animator.Y[0][-1]
+
+    def add(self, x, y_tuple):
+        self.X.append(float(x))
+        self.Y[0].append(float(y_tuple[0]))
+
+    def plot(self):
+        plt.figure(figsize=(5, 3))
+        plt.plot(self.X, self.Y[0])
+        if self.xlabel: plt.xlabel(self.xlabel)
+        if self.ylabel: plt.ylabel(self.ylabel)
+        if self.xlim: plt.xlim(self.xlim)
+        if self.ylim: plt.ylim(self.ylim)
+        plt.tight_layout()
+        plt.show()
+
+
+def train_ch11(trainer_fn, states, hyperparams, data_iter,
+               feature_dim, num_epochs=2):
+    # Initialization
+    w = torch.normal(mean=0.0, std=0.01, size=(feature_dim, 1), requires_grad=True)
+    b = torch.zeros((1,), requires_grad=True)
+
+    net = lambda X: linreg(X, w, b)
+    loss_fn = squared_loss
+
+    animator = Animator(xlabel='epoch', ylabel='loss',
+                        xlim=[0, num_epochs], ylim=[0.22, 0.35])
+
+    n, timer = 0, Timer()
+    timer.start()
+
+    for _ in range(num_epochs):
+        for X, y in data_iter:
+            l = loss_fn(net(X), y).mean()
+            l.backward()
+            trainer_fn([w, b], states, hyperparams)
+
+            n += X.shape[0]
+            if n % 200 == 0:
+                timer.stop()
+                cur_loss = evaluate_loss(net, data_iter, loss_fn)
+                animator.add(n / X.shape[0] / len(data_iter), (cur_loss,))
+                timer.start()
+
+    # finish timing if running
+    timer.stop()
+
+    print(f'loss: {animator.Y[0][-1]:.3f}, {timer.sum()/num_epochs:.3f} sec/epoch')
+    return timer.cumsum(), animator.Y[0]
+
+
+def train_concise_ch11(trainer_fn, hyperparams, data_iter, num_epochs=4):
+    # Initialization
+    net = nn.Sequential(nn.Linear(5, 1))
+    def init_weights(module):
+        if type(module) == nn.Linear:
+            torch.nn.init.normal_(module.weight, std=0.01)
+    net.apply(init_weights)
+
+    optimizer = trainer_fn(net.parameters(), **hyperparams)
+    loss = nn.MSELoss(reduction='none')
+    animator = Animator(xlabel='epoch', ylabel='loss',
+                            xlim=[0, num_epochs], ylim=[0.22, 0.35])
+    n, timer = 0, Timer()
+    for _ in range(num_epochs):
+        for X, y in data_iter:
+            optimizer.zero_grad()
+            out = net(X)
+            y = y.reshape(out.shape)
+            l = loss(out, y)
+            l.mean().backward()
+            optimizer.step()
+            n += X.shape[0]
+            if n % 200 == 0:
+                timer.stop()
+                # `MSELoss` computes squared error without the 1/2 factor
+                animator.add(n/X.shape[0]/len(data_iter),
+                             (evaluate_loss(net, data_iter, loss) / 2,))
+                timer.start()
+    print(f'loss: {animator.Y[0][-1]:.3f}, {timer.sum()/num_epochs:.3f} sec/epoch')
+
+# Chapter 13
+class Benchmark:
+    """For measuring running time."""
+    def __init__(self, description='Done'):
+        self.description = description
+
+    def __enter__(self):
+        self.timer = Timer()
+        return self
+
+    def __exit__(self, *args):
+        print(f'{self.description}: {self.timer.stop():.4f} sec')
