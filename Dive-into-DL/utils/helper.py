@@ -7,6 +7,8 @@ import urllib.request
 import zipfile
 import requests
 import inspect
+import time
+import random
 
 from typing import Iterable, Optional, Any, Tuple, List
 import collections
@@ -19,13 +21,10 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 
 import matplotlib.pyplot as plt
-from IPython import display
-
 plt.figurefigsize=(6, 3)
 
 import torchvision
 from torchvision import transforms
-
 
 # Chapter 2
 
@@ -1148,6 +1147,32 @@ class Decoder(nn.Module):  #@save
     def forward(self, X, state):
         raise NotImplementedError
 
+def show_list_len_pair_hist(legend, xlabel, ylabel, xlist, ylist, bins=30):
+    """Plot the histogram for list length pairs."""
+    import matplotlib.pyplot as plt
+
+    x_lens = [len(l) for l in xlist]
+    y_lens = [len(l) for l in ylist]
+
+    plt.figure(figsize=(6, 4))
+
+    # plot two histograms together
+    _, _, patches = plt.hist(
+        [x_lens, y_lens],
+        bins=bins,
+        label=legend
+    )
+
+    # add hatching to the second histogram
+    for patch in patches[1]:
+        patch.set_hatch('/')
+
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
 class EncoderDecoder(Classifier):  #@save
     """The base class for the encoder--decoder architecture."""
     def __init__(self, encoder, decoder):
@@ -1160,59 +1185,6 @@ class EncoderDecoder(Classifier):  #@save
         dec_state = self.decoder.init_state(enc_all_outputs, *args)
         # Return decoder output only
         return self.decoder(dec_X, dec_state)[0]
-    
-## Chapter NLP
-
-def _sha1sum(path: str) -> str:
-    h = hashlib.sha1()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-def download_and_extract_ptb(root: str = "./data") -> str:
-    """
-    Download ptb.zip to `root`, verify SHA1, and extract.
-    Returns the extracted PTB directory (e.g., ./data/ptb).
-    """
-    os.makedirs(root, exist_ok=True)
-    zip_path = os.path.join(root, "ptb.zip")
-    ptb_dir = os.path.join(root, "ptb")
-
-    # Download if missing
-    if not os.path.exists(zip_path):
-        print(f"Downloading PTB to {zip_path} ...")
-        r = requests.get(PTB_URL, stream=True, timeout=60)
-        r.raise_for_status()
-        with open(zip_path, "wb") as f:
-            for chunk in r.iter_content(chunk_size=1 << 20):
-                if chunk:
-                    f.write(chunk)
-
-    # Verify checksum
-    if _sha1sum(zip_path) != PTB_SHA1:
-        raise RuntimeError("PTB zip SHA1 mismatch. Please delete ptb.zip and re-download.")
-
-    # Extract if missing
-    if not os.path.exists(ptb_dir):
-        print(f"Extracting PTB to {ptb_dir} ...")
-        with zipfile.ZipFile(zip_path, "r") as z:
-            z.extractall(root)
-
-    return ptb_dir
-
-def read_ptb(split: str = "train", root: str = "./data") -> List[List[str]]:
-    """
-    Load PTB split into a list of token lists (one list per line).
-    split: 'train' | 'valid' | 'test'
-    """
-    ptb_dir = download_and_extract_ptb(root)
-    fname = f"ptb.{split}.txt"
-    path = os.path.join(ptb_dir, fname)
-    with open(path, "r", encoding="utf-8") as f:
-        raw = f.read()
-    return [line.split() for line in raw.split("\n") if line.strip() != ""]
-
 
 class BiRNNScratch(Module):
     def __init__(self, num_inputs, num_hiddens, sigma=0.01):
@@ -1912,3 +1884,536 @@ class ViT(Classifier):
     
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
+
+# Chapter 12
+
+def train_2d(trainer, steps=20, f_grad=None):  #@save
+    """Optimize a 2D objective function with a customized trainer."""
+    # `s1` and `s2` are internal state variables that will be used in Momentum, adagrad, RMSProp
+    x1, x2, s1, s2 = -5, -2, 0, 0
+    results = [(x1, x2)]
+    for i in range(steps):
+        if f_grad:
+            x1, x2, s1, s2 = trainer(x1, x2, s1, s2, f_grad)
+        else:
+            x1, x2, s1, s2 = trainer(x1, x2, s1, s2)
+        results.append((x1, x2))
+    print(f'epoch {i + 1}, x1: {float(x1):f}, x2: {float(x2):f}')
+    return results
+
+
+def show_trace_2d(f, results):
+    """Show the trace of 2D variables during optimization (no d2l)."""
+    # results: list of (x1, x2)
+    xs, ys = zip(*results)
+
+    plt.figure(figsize=(4.5, 3))
+    plt.plot(xs, ys, '-o', color='#ff7f0e')
+
+    # Create meshgrid
+    x1 = torch.arange(-5.5, 1.0, 0.1)
+    x2 = torch.arange(-3.0, 1.0, 0.1)
+    X1, X2 = torch.meshgrid(x1, x2, indexing='ij')
+
+    # Evaluate function
+    Z = f(X1, X2)
+
+    # Convert to numpy safely
+    if isinstance(Z, torch.Tensor):
+        Z = Z.detach().cpu().numpy()
+        X1 = X1.detach().cpu().numpy()
+        X2 = X2.detach().cpu().numpy()
+
+    plt.contour(X1, X2, Z, colors='#1f77b4')
+    plt.xlabel('x1')
+    plt.ylabel('x2')
+    plt.tight_layout()
+    plt.show()
+
+class Timer:  
+    """Record multiple running times."""
+    def __init__(self):
+        self.times = []
+        self.start()
+
+    def start(self):
+        """Start the timer."""
+        self.tik = time.time()
+
+    def stop(self):
+        """Stop the timer and record the time in a list."""
+        self.times.append(time.time() - self.tik)
+        return self.times[-1]
+
+    def avg(self):
+        """Return the average time."""
+        return sum(self.times) / len(self.times)
+
+    def sum(self):
+        """Return the sum of time."""
+        return sum(self.times)
+
+    def cumsum(self):
+        """Return the accumulated time."""
+        return np.array(self.times).cumsum().tolist()
+
+
+AIRFOIL_URL = "http://d2l-data.s3-accelerate.amazonaws.com/airfoil_self_noise.dat"
+AIRFOIL_SHA1 = "76e5be1548fd8222e5074cf0faae75edff8cf93f"
+
+
+def _sha1sum(path: str) -> str:
+    h = hashlib.sha1()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def download(url: str, root: str = "./data", filename: str | None = None, sha1: str | None = None) -> str:
+    """Download `url` into `root` and optionally verify sha1. Return local filepath."""
+    os.makedirs(root, exist_ok=True)
+    if filename is None:
+        filename = os.path.basename(url)
+    path = os.path.join(root, filename)
+
+    if not os.path.exists(path):
+        r = requests.get(url, stream=True, timeout=60)
+        r.raise_for_status()
+        with open(path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=1 << 20):
+                if chunk:
+                    f.write(chunk)
+
+    if sha1 is not None:
+        got = _sha1sum(path)
+        if got != sha1:
+            raise RuntimeError(f"SHA1 mismatch for {path}: got {got}, expected {sha1}")
+
+    return path
+
+
+def load_array(data_arrays, batch_size: int, is_train: bool = True) -> DataLoader:
+    """Construct a PyTorch DataLoader from (features, labels)."""
+    X, y = data_arrays
+    dataset = TensorDataset(X, y)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=is_train)
+
+
+def get_data_ch11(batch_size: int = 10, n: int = 1500, root: str = "./data"):
+    path = download(AIRFOIL_URL, root=root, filename="airfoil_self_noise.dat", sha1=AIRFOIL_SHA1)
+
+    data = np.genfromtxt(path, dtype=np.float32, delimiter="\t")
+    data = torch.from_numpy(data)
+
+    # standardize each column
+    data = (data - data.mean(dim=0)) / data.std(dim=0, unbiased=False)
+
+    X = data[:n, :-1]
+    y = data[:n, -1]
+    data_iter = load_array((X, y), batch_size=batch_size, is_train=True)
+    return data_iter, data.shape[1] - 1
+
+
+def linreg(X, w, b):
+    return X @ w + b
+
+def squared_loss(y_hat, y):
+    # y_hat: (B,1), y: (B,) or (B,1)
+    y = y.reshape(y_hat.shape)
+    return 0.5 * (y_hat - y) ** 2
+
+def evaluate_loss(net, data_iter, loss_fn):
+    total_loss, total_n = 0.0, 0
+    with torch.no_grad():
+        for X, y in data_iter:
+            l = loss_fn(net(X), y)
+            total_loss += float(l.sum())
+            total_n += y.numel()
+    return total_loss / total_n
+
+
+class Animator:
+    """
+    Minimal drop-in for d2l.Animator used here:
+      - stores X and Y
+      - add(x, (y,))
+      - optional live plotting
+    """
+    def __init__(self, xlabel=None, ylabel=None, xlim=None, ylim=None):
+        self.xlabel, self.ylabel = xlabel, ylabel
+        self.xlim, self.ylim = xlim, ylim
+        self.X = []
+        self.Y = [[]]  # match your access animator.Y[0][-1]
+
+    def add(self, x, y_tuple):
+        self.X.append(float(x))
+        self.Y[0].append(float(y_tuple[0]))
+
+    def plot(self):
+        plt.figure(figsize=(5, 3))
+        plt.plot(self.X, self.Y[0])
+        if self.xlabel: plt.xlabel(self.xlabel)
+        if self.ylabel: plt.ylabel(self.ylabel)
+        if self.xlim: plt.xlim(self.xlim)
+        if self.ylim: plt.ylim(self.ylim)
+        plt.tight_layout()
+        plt.show()
+
+
+def train_ch11(trainer_fn, states, hyperparams, data_iter,
+               feature_dim, num_epochs=2):
+    # Initialization
+    w = torch.normal(mean=0.0, std=0.01, size=(feature_dim, 1), requires_grad=True)
+    b = torch.zeros((1,), requires_grad=True)
+
+    net = lambda X: linreg(X, w, b)
+    loss_fn = squared_loss
+
+    animator = Animator(xlabel='epoch', ylabel='loss',
+                        xlim=[0, num_epochs], ylim=[0.22, 0.35])
+
+    n, timer = 0, Timer()
+    timer.start()
+
+    for _ in range(num_epochs):
+        for X, y in data_iter:
+            l = loss_fn(net(X), y).mean()
+            l.backward()
+            trainer_fn([w, b], states, hyperparams)
+
+            n += X.shape[0]
+            if n % 200 == 0:
+                timer.stop()
+                cur_loss = evaluate_loss(net, data_iter, loss_fn)
+                animator.add(n / X.shape[0] / len(data_iter), (cur_loss,))
+                timer.start()
+
+    # finish timing if running
+    timer.stop()
+
+    print(f'loss: {animator.Y[0][-1]:.3f}, {timer.sum()/num_epochs:.3f} sec/epoch')
+    return timer.cumsum(), animator.Y[0]
+
+
+def train_concise_ch11(trainer_fn, hyperparams, data_iter, num_epochs=4):
+    # Initialization
+    net = nn.Sequential(nn.Linear(5, 1))
+    def init_weights(module):
+        if type(module) == nn.Linear:
+            torch.nn.init.normal_(module.weight, std=0.01)
+    net.apply(init_weights)
+
+    optimizer = trainer_fn(net.parameters(), **hyperparams)
+    loss = nn.MSELoss(reduction='none')
+    animator = Animator(xlabel='epoch', ylabel='loss',
+                            xlim=[0, num_epochs], ylim=[0.22, 0.35])
+    n, timer = 0, Timer()
+    for _ in range(num_epochs):
+        for X, y in data_iter:
+            optimizer.zero_grad()
+            out = net(X)
+            y = y.reshape(out.shape)
+            l = loss(out, y)
+            l.mean().backward()
+            optimizer.step()
+            n += X.shape[0]
+            if n % 200 == 0:
+                timer.stop()
+                # `MSELoss` computes squared error without the 1/2 factor
+                animator.add(n/X.shape[0]/len(data_iter),
+                             (evaluate_loss(net, data_iter, loss) / 2,))
+                timer.start()
+    print(f'loss: {animator.Y[0][-1]:.3f}, {timer.sum()/num_epochs:.3f} sec/epoch')
+
+# Chapter 13
+class Benchmark:
+    """For measuring running time."""
+    def __init__(self, description='Done'):
+        self.description = description
+
+    def __enter__(self):
+        self.timer = Timer()
+        return self
+
+    def __exit__(self, *args):
+        print(f'{self.description}: {self.timer.stop():.4f} sec')
+
+
+## Chapter 15
+
+PTB_URL = "https://d2l-data.s3-accelerate.amazonaws.com/ptb.zip"
+PTB_SHA1 = "319d85e578af0cdc590547f26231e4e31cdf1e42"
+
+def _sha1sum(path: str) -> str:
+    h = hashlib.sha1()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+def download_and_extract_ptb(
+    root: str = "./data",
+    ptb_sha1: str = PTB_SHA1,
+    ptb_url: str = PTB_URL,
+) -> str:
+    """
+    Download ptb.zip to `root`, verify SHA1, and extract.
+    Returns the extracted PTB directory (e.g., ./data/ptb).
+    """
+    os.makedirs(root, exist_ok=True)
+    zip_path = os.path.join(root, "ptb.zip")
+    ptb_dir = os.path.join(root, "ptb")
+
+    # Download if missing
+    if not os.path.exists(zip_path):
+        print(f"Downloading PTB to {zip_path} ...")
+        with requests.get(ptb_url, stream=True, timeout=60) as r:
+            r.raise_for_status()
+            with open(zip_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=1 << 20):
+                    if chunk:
+                        f.write(chunk)
+
+    # Verify checksum
+    if _sha1sum(zip_path) != ptb_sha1:
+        raise RuntimeError(
+            "PTB zip SHA1 mismatch. Delete the file and re-download:\n"
+            f"  {zip_path}"
+        )
+
+    # Extract if missing (or if train file missing)
+    train_path = os.path.join(ptb_dir, "ptb.train.txt")
+    if not os.path.exists(train_path):
+        print(f"Extracting PTB to {ptb_dir} ...")
+        with zipfile.ZipFile(zip_path, "r") as z:
+            z.extractall(root)
+
+    return ptb_dir
+
+def read_ptb(root: str = "./data", split: str = "train"):
+    """
+    Load PTB split into a list of token lists.
+    split: "train" | "valid" | "test"
+    """
+    data_dir = download_and_extract_ptb(root=root)
+    fname = f"ptb.{split}.txt"
+    path = os.path.join(data_dir, fname)
+
+    with open(path, "r", encoding="utf-8") as f:
+        raw_text = f.read()
+
+    # list[list[str]]
+    return [line.split() for line in raw_text.strip().split("\n")]
+
+def get_centers_and_contexts(corpus, max_window_size):
+    """Return center words and context words in skip-gram."""
+    centers, contexts = [], []
+    for line in corpus:
+        # To form a "center word--context word" pair, each sentence needs to
+        # have at least 2 words
+        if len(line) < 2:
+            continue
+        centers += line
+        for i in range(len(line)):  # Context window centered at `i`
+            window_size = random.randint(1, max_window_size)
+            indices = list(range(max(0, i - window_size),
+                                 min(len(line), i + 1 + window_size)))
+            # Exclude the center word from the context words
+            indices.remove(i)
+            contexts.append([line[idx] for idx in indices])
+    return centers, contexts
+
+class RandomGenerator:
+    """Randomly draw among {1, ..., n} according to n sampling weights."""
+    def __init__(self, sampling_weights):
+        # Exclude
+        self.population = list(range(1, len(sampling_weights) + 1))
+        self.sampling_weights = sampling_weights
+        self.candidates = []
+        self.i = 0
+
+    def draw(self):
+        if self.i == len(self.candidates):
+            # Cache `k` random sampling results
+            self.candidates = random.choices(
+                self.population, self.sampling_weights, k=10000)
+            self.i = 0
+        self.i += 1
+        return self.candidates[self.i - 1]
+
+def get_negatives(all_contexts, vocab, counter, K):
+    """Return noise words in negative sampling."""
+    # Sampling weights for words with indices 1, 2, ... (index 0 is the
+    # excluded unknown token) in the vocabulary
+    sampling_weights = [counter[vocab.to_tokens(i)]**0.75
+                        for i in range(1, len(vocab))]
+    all_negatives, generator = [], RandomGenerator(sampling_weights)
+    for contexts in all_contexts:
+        negatives = []
+        while len(negatives) < len(contexts) * K:
+            neg = generator.draw()
+            # Noise words cannot be context words
+            if neg not in contexts:
+                negatives.append(neg)
+        all_negatives.append(negatives)
+    return all_negatives
+
+def batchify(data):
+    """Return a minibatch of examples for skip-gram with negative sampling."""
+    max_len = max(len(c) + len(n) for _, c, n in data)
+    centers, contexts_negatives, masks, labels = [], [], [], []
+    for center, context, negative in data:
+        cur_len = len(context) + len(negative)
+        centers += [center]
+        contexts_negatives += [context + negative + [0] * (max_len - cur_len)]
+        masks += [[1] * cur_len + [0] * (max_len - cur_len)]
+        labels += [[1] * len(context) + [0] * (max_len - len(context))]
+    return (torch.tensor(centers).reshape((-1, 1)), torch.tensor(
+        contexts_negatives), torch.tensor(masks), torch.tensor(labels))
+
+def subsample(sentences, vocab):
+    """Subsample high-frequency words."""
+    # Exclude unknown tokens ('<unk>')
+    sentences = [[token for token in line if vocab[token] != vocab.unk]
+                 for line in sentences]
+    counter = collections.Counter([
+        token for line in sentences for token in line])
+    num_tokens = sum(counter.values())
+
+    # Return True if `token` is kept during subsampling
+    def keep(token):
+        return(random.uniform(0, 1) <
+               math.sqrt(1e-4 / counter[token] * num_tokens))
+
+    return ([[token for token in line if keep(token)] for line in sentences],
+            counter)
+
+def load_data_ptb(batch_size, max_window_size, num_noise_words):
+    """Download the PTB dataset and then load it into memory."""
+    # num_workers = get_dataloader_workers()
+    num_workers = 0
+    sentences = read_ptb()
+    vocab = Vocab(sentences, min_freq=10)
+    subsampled, counter = subsample(sentences, vocab)
+    corpus = [vocab[line] for line in subsampled]
+    all_centers, all_contexts = get_centers_and_contexts(
+        corpus, max_window_size)
+    all_negatives = get_negatives(
+        all_contexts, vocab, counter, num_noise_words)
+
+    class PTBDataset(torch.utils.data.Dataset):
+        def __init__(self, centers, contexts, negatives):
+            assert len(centers) == len(contexts) == len(negatives)
+            self.centers = centers
+            self.contexts = contexts
+            self.negatives = negatives
+
+        def __getitem__(self, index):
+            return (self.centers[index], self.contexts[index],
+                    self.negatives[index])
+
+        def __len__(self):
+            return len(self.centers)
+
+    dataset = PTBDataset(all_centers, all_contexts, all_negatives)
+
+    data_iter = torch.utils.data.DataLoader(dataset, batch_size, shuffle=True,
+                                      collate_fn=batchify,
+                                      num_workers=num_workers)
+    return data_iter, vocab
+
+
+def get_tokens_and_segments(tokens_a, tokens_b=None):
+    """Get tokens of the BERT input sequence and their segment IDs."""
+    tokens = ['<cls>'] + tokens_a + ['<sep>']
+    # 0 and 1 are marking segment A and B, respectively
+    segments = [0] * (len(tokens_a) + 2)
+    if tokens_b is not None:
+        tokens += tokens_b + ['<sep>']
+        segments += [1] * (len(tokens_b) + 1)
+    return tokens, segments
+
+
+class BERTEncoder(nn.Module):
+    """BERT encoder."""
+    def __init__(self, vocab_size, num_hiddens, ffn_num_hiddens, num_heads,
+                 num_blks, dropout, max_len=1000, **kwargs):
+        super(BERTEncoder, self).__init__(**kwargs)
+        self.token_embedding = nn.Embedding(vocab_size, num_hiddens)
+        self.segment_embedding = nn.Embedding(2, num_hiddens)
+        self.blks = nn.Sequential()
+        for i in range(num_blks):
+            self.blks.add_module(f"{i}", TransformerEncoderBlock(
+                num_hiddens, ffn_num_hiddens, num_heads, dropout, True))
+        # In BERT, positional embeddings are learnable, thus we create a
+        # parameter of positional embeddings that are long enough
+        self.pos_embedding = nn.Parameter(torch.randn(1, max_len,
+                                                      num_hiddens))
+
+    def forward(self, tokens, segments, valid_lens):
+        # Shape of `X` remains unchanged in the following code snippet:
+        # (batch size, max sequence length, `num_hiddens`)
+        X = self.token_embedding(tokens) + self.segment_embedding(segments)
+        X = X + self.pos_embedding[:, :X.shape[1], :]
+        for blk in self.blks:
+            X = blk(X, valid_lens)
+        return X
+
+
+class MaskLM(nn.Module):
+    """The masked language model task of BERT."""
+    def __init__(self, vocab_size, num_hiddens, **kwargs):
+        super(MaskLM, self).__init__(**kwargs)
+        self.mlp = nn.Sequential(nn.LazyLinear(num_hiddens),
+                                 nn.ReLU(),
+                                 nn.LayerNorm(num_hiddens),
+                                 nn.LazyLinear(vocab_size))
+
+    def forward(self, X, pred_positions):
+        num_pred_positions = pred_positions.shape[1]
+        pred_positions = pred_positions.reshape(-1)
+        batch_size = X.shape[0]
+        batch_idx = torch.arange(0, batch_size)
+        # Suppose that `batch_size` = 2, `num_pred_positions` = 3, then
+        # `batch_idx` is `torch.tensor([0, 0, 0, 1, 1, 1])`
+        batch_idx = torch.repeat_interleave(batch_idx, num_pred_positions)
+        masked_X = X[batch_idx, pred_positions]
+        masked_X = masked_X.reshape((batch_size, num_pred_positions, -1))
+        mlm_Y_hat = self.mlp(masked_X)
+        return mlm_Y_hat
+
+class NextSentencePred(nn.Module):
+    """The next sentence prediction task of BERT."""
+    def __init__(self, **kwargs):
+        super(NextSentencePred, self).__init__(**kwargs)
+        self.output = nn.LazyLinear(2)
+
+    def forward(self, X):
+        # `X` shape: (batch size, `num_hiddens`)
+        return self.output(X)
+
+
+class BERTModel(nn.Module):
+    """The BERT model."""
+    def __init__(self, vocab_size, num_hiddens, ffn_num_hiddens,
+                 num_heads, num_blks, dropout, max_len=1000):
+        super(BERTModel, self).__init__()
+        self.encoder = BERTEncoder(vocab_size, num_hiddens, ffn_num_hiddens,
+                                   num_heads, num_blks, dropout,
+                                   max_len=max_len)
+        self.hidden = nn.Sequential(nn.LazyLinear(num_hiddens),
+                                    nn.Tanh())
+        self.mlm = MaskLM(vocab_size, num_hiddens)
+        self.nsp = NextSentencePred()
+
+    def forward(self, tokens, segments, valid_lens=None, pred_positions=None):
+        encoded_X = self.encoder(tokens, segments, valid_lens)
+        if pred_positions is not None:
+            mlm_Y_hat = self.mlm(encoded_X, pred_positions)
+        else:
+            mlm_Y_hat = None
+        # The hidden layer of the MLP classifier for next sentence prediction.
+        # 0 is the index of the '<cls>' token
+        nsp_Y_hat = self.nsp(self.hidden(encoded_X[:, 0, :]))
+        return encoded_X, mlm_Y_hat, nsp_Y_hat
