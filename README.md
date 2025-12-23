@@ -1,5 +1,7 @@
 ## Definitions
 
+![LLM RoadMap](roadmap.png)
+
 - **PyTorch** is one of the most popular [deep learning](https://www.datacamp.com/tutorial/tutorial-deep-learning-tutorial) frameworks, with a syntax similar to NumPy.
 - In the context of PyTorch, you can think of a **Tensor** as a NumPy array that can be run on a CPU or a GPU, and has a method for automatic differentiation (needed for backpropagation).
 - **TorchText, TorchVision**, and **TorchAudio** are Python packages that provide PyTorch with functionality for text, image, and audio data respectively
