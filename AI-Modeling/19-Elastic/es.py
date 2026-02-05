@@ -425,3 +425,43 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+'''
+(llm)  ✘  🐍 llm  linghuang@Mac  ~/Git/Deep-Learning   local-ai-model ±  /Users/linghuang/miniconda3/envs/llm/bin/python /Users/linghuang/Git/Deep-Learning/AI-Modelin
+g/19-Elastic/es.py
+[OK] Connected: docker-cluster (v8.11.3) @ http://127.0.0.1:9200
+Loading weights: 100%|█████████████████████████████████████████████████████████████████████████████████| 310/310 [00:00<00:00, 3790.56it/s, Materializing param=norm.weight]
+[EMB] Embedding 8 texts on mps using Qwen/Qwen3-Embedding-0.6B
+[WARN] EMBED_DIMS=1536 but model produced dims=1024. Using dims=1024 for mapping.
+[OK] Index 'books_demo' CREATED.
+/Users/linghuang/Git/Deep-Learning/AI-Modeling/19-Elastic/es.py:198: DeprecationWarning: Passing transport options in the API method is deprecated. Use 'Elasticsearch.options()' instead.
+  success, errors = bulk(es, actions, raise_on_error=False, request_timeout=120)
+[OK] Indexed 8/8 synthetic books into 'books_demo'
+
+[Keyword Search] Query: Elasticsearch basics for search
+- Vector Databases vs Elasticsearch for RAG | author: Chris | views: 2210 | score: None
+- Search Relevance Tuning with Query DSL | author: Emily | views: 1675 | score: None
+- Hybrid Search: BM25 + Vector Retrieval | author: Mina | views: 1540 | score: None
+- Scaling Elasticsearch Clusters: Shards, Replicas, and Nodes | author: Ava | views: 1310 | score: None
+- Observability Logs in Elasticsearch: Index Lifecycle and Tiers | author: Sam | views: 1135 | score: None
+
+[Facets] Top tags:
+- elasticsearch => 2
+- search => 2
+- vector-search => 2
+- aggregations => 1
+- bm25 => 1
+- boosting => 1
+- clusters => 1
+- ecommerce => 1
+- facets => 1
+- hot-warm-cold => 1
+[EMB] Embedding 1 texts on mps using Qwen/Qwen3-Embedding-0.6B
+
+[KNN Search] Query: Explain inverted index and doc values in Lucene
+- Lucene Internals: Inverted Index and Doc Values | tags: ['lucene', 'search', 'indexing'] | views: 870 | score: 0.94278723
+- Observability Logs in Elasticsearch: Index Lifecycle and Tiers | tags: ['observability', 'ilm', 'hot-warm-cold'] | views: 1135 | score: 0.71357036
+- Elasticsearch Basics | tags: ['search', 'elasticsearch'] | views: 1024 | score: 0.70136124
+- Hybrid Search: BM25 + Vector Retrieval | tags: ['hybrid-search', 'bm25', 'vector-search'] | views: 1540 | score: 0.6974207
+- Search Relevance Tuning with Query DSL | tags: ['relevance', 'query-dsl', 'boosting'] | views: 1675 | score: 0.6927766
+'''

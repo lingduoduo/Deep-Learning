@@ -479,3 +479,5 @@ Elasticsearch is not a relational database. You'll want to denormalize your data
 - Not all search problems require it! If your data is small (< 100k documents) or doesn't change often, there are many other and faster solutions. See if a simple query against your primary data store is sufficient and only consider Elasticsearch if you find that to be insufficient.
 
 - You need to be careful you're keeping Elasticsearch in sync with the underlying data. Failures in synchronization can lead to drift and are a common source of bugs with Elasticsearch.
+
+![Flow Diagram](flow.png)
