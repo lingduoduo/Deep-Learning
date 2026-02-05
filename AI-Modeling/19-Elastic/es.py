@@ -2,56 +2,46 @@
 """
 elasticsearch_vector_demo_books.py
 
-This version:
-- DROPS external data loading (no doc1.json / JSONL needed).
-- Uses a small in-script synthetic dataset like:
-  {
-    "title": "Elasticsearch Basics",
-    "author": "Emily",
-    "published_date": "2024-01-01",
-    "tags": ["search", "elasticsearch"],
-    "views": 1024
-  }
-- Updates the ES mapping accordingly.
-- Updates keyword query + vector KNN query to match the new fields.
-
-Embedding model (Option 3):
-- Auto-downloads from Hugging Face Hub: Qwen/Qwen3-Embedding-0.6B
+Optimized version:
+- Synthetic in-script dataset
+- Faster bulk indexing
+- Safer embedding batching + auto embedding dims detection
+- Modern ES knn query style
 """
 
 from __future__ import annotations
 
-import math
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from elasticsearch import Elasticsearch
+from elasticsearch.helpers import bulk
 
 
 # -------------------------
 # Configuration
 # -------------------------
 
-@dataclass
+@dataclass(frozen=True)
 class Settings:
     # Elasticsearch
-    es_host: str = os.getenv("ES_HOST", "http://localhost:9200")
-    es_user: Optional[str] = os.getenv("ES_USER")  # optional if security disabled
+    es_host: str = os.getenv("ES_HOST", "http://127.0.0.1:9200")
+    es_user: Optional[str] = os.getenv("ES_USER")
     es_password: Optional[str] = os.getenv("ES_PASSWORD")
     verify_certs: bool = os.getenv("ES_VERIFY_CERTS", "false").lower() == "true"
     index_name: str = os.getenv("ES_INDEX", "books_demo")
 
     # HF embedding model (auto-download)
-    hf_model_id: str = os.getenv("HF_MODEL_ID", "Qwen/Qwen3-Embedding-0.6B")
+    hf_model_id: str = "Qwen/Qwen3-Embedding-0.6B"
     hf_token: Optional[str] = os.getenv("HF_TOKEN")
 
-    # Dense vector dims must match embedding output dims
+    # If set, we will validate against model output dims
     embedding_dims: int = int(os.getenv("EMBED_DIMS", "1536"))
 
     # Embedding settings
     embedding_batch_size: int = int(os.getenv("EMBED_BATCH_SIZE", "16"))
-    embedding_max_length: int = int(os.getenv("EMBED_MAX_LENGTH", "512"))  # titles/tags are short
+    embedding_max_length: int = int(os.getenv("EMBED_MAX_LENGTH", "512"))
     device: str = os.getenv("DEVICE", "auto")  # auto | cpu | cuda | mps
 
 
@@ -60,13 +50,6 @@ class Settings:
 # -------------------------
 
 def make_synthetic_books() -> List[Dict[str, Any]]:
-    """
-    Small synthetic dataset suitable for demoing:
-    - keyword search (match/match_phrase)
-    - sort by numeric fields
-    - terms aggregation on tags
-    - vector search using embeddings generated from title+tags text
-    """
     return [
         {
             "title": "Elasticsearch Basics",
@@ -128,21 +111,14 @@ def make_synthetic_books() -> List[Dict[str, Any]]:
 
 
 def doc_to_embedding_text(doc: Dict[str, Any]) -> str:
-    """
-    Create the text we embed into docEmbedding.
-    For small book metadata, title + tags is a simple, effective choice.
-    """
     title = doc.get("title", "")
+    author = doc.get("author", "")
     tags = doc.get("tags", [])
     tags_str = ", ".join(tags) if isinstance(tags, list) else str(tags)
-    author = doc.get("author", "")
     return f"Title: {title}\nAuthor: {author}\nTags: {tags_str}"
 
 
 def build_query_text(user_query: str) -> str:
-    """
-    Instruct-style wrapper to match the notebook's idea, but tailored to this dataset.
-    """
     task = "Given a library search query, retrieve the most relevant book entries."
     return f"Instruct: {task}\nQuery: {user_query}"
 
@@ -156,9 +132,9 @@ def build_index_mapping(dims: int) -> Dict[str, Any]:
         "mappings": {
             "properties": {
                 "title": {"type": "text"},
-                "author": {"type": "keyword"},  # exact match + aggregation
+                "author": {"type": "keyword"},
                 "published_date": {"type": "date"},
-                "tags": {"type": "keyword"},  # facet-friendly
+                "tags": {"type": "keyword"},
                 "views": {"type": "integer"},
                 "docEmbedding": {
                     "type": "dense_vector",
@@ -172,25 +148,23 @@ def build_index_mapping(dims: int) -> Dict[str, Any]:
 
 
 def connect_es(cfg: Settings) -> Elasticsearch:
+    kwargs = {
+        "hosts": [cfg.es_host],
+        "verify_certs": cfg.verify_certs,
+        "request_timeout": 10,
+    }
     if cfg.es_user and cfg.es_password:
-        es = Elasticsearch(
-            hosts=[cfg.es_host],
-            basic_auth=(cfg.es_user, cfg.es_password),
-            verify_certs=cfg.verify_certs,
-        )
-    else:
-        es = Elasticsearch(hosts=[cfg.es_host], verify_certs=cfg.verify_certs)
+        kwargs["basic_auth"] = (cfg.es_user, cfg.es_password)
 
-    if not es.ping():
-        raise RuntimeError(f"Elasticsearch not reachable at {cfg.es_host}")
+    es = Elasticsearch(**kwargs)
+
+    # Prefer info() over ping()
+    info = es.info()
+    print(f"[OK] Connected: {info['cluster_name']} (v{info['version']['number']}) @ {cfg.es_host}")
     return es
 
 
 def recreate_index(es: Elasticsearch, index_name: str, index_mapping: Dict[str, Any]) -> None:
-    """
-    For a demo: delete + recreate so mapping is always correct.
-    If you prefer "create if not exists", change this behavior.
-    """
     if es.indices.exists(index=index_name):
         es.indices.delete(index=index_name)
         print(f"[OK] Index '{index_name}' DELETED.")
@@ -198,13 +172,36 @@ def recreate_index(es: Elasticsearch, index_name: str, index_mapping: Dict[str, 
     print(f"[OK] Index '{index_name}' CREATED.")
 
 
-def add_doc(es: Elasticsearch, index_name: str, document: Dict[str, Any], doc_id: str) -> bool:
-    try:
-        es.index(index=index_name, id=doc_id, document=document)
-        return True
-    except Exception as e:
-        print(f"[ERR] Index '{index_name}', Doc Id '{doc_id}' ADD failed: {e}")
-        return False
+def bulk_index_books(
+    es: Elasticsearch,
+    index_name: str,
+    books: List[Dict[str, Any]],
+    embeddings: List[List[float]],
+) -> int:
+    if len(books) != len(embeddings):
+        raise ValueError("books and embeddings length mismatch")
+
+    actions = []
+    for i, (b, emb) in enumerate(zip(books, embeddings)):
+        doc = dict(b)
+        doc["docEmbedding"] = emb
+        actions.append(
+            {
+                "_op_type": "index",
+                "_index": index_name,
+                "_id": str(i),
+                "_source": doc,
+            }
+        )
+
+    # bulk returns (success_count, errors)
+    success, errors = bulk(es, actions, raise_on_error=False, request_timeout=120)
+    if errors:
+        # errors is a list of per-item failures; print a short summary
+        print(f"[WARN] Bulk had {len(errors)} errors (showing up to 2): {errors[:2]}")
+    # Ensure docs are searchable immediately in a demo context
+    es.indices.refresh(index=index_name)
+    return int(success)
 
 
 # -------------------------
@@ -216,6 +213,7 @@ def pick_device(cfg: Settings) -> str:
         return cfg.device
     try:
         import torch
+
         if torch.cuda.is_available():
             return "cuda"
         if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
@@ -227,25 +225,32 @@ def pick_device(cfg: Settings) -> str:
 
 def last_token_pool(last_hidden_states, attention_mask):
     """
-    Notebook-style pooling: last non-padding token.
+    Pooling: take the last non-padding token representation.
+    Works for both left- and right-padding.
     """
     import torch
-    left_padding = (attention_mask[:, -1].sum() == attention_mask.shape[0])
+
+    # attention_mask: 1 for real tokens, 0 for pads
+    # For left-padding, last position is always real tokens => sum equals batch size
+    left_padding = (attention_mask[:, -1].sum().item() == attention_mask.shape[0])
+
     if left_padding:
         return last_hidden_states[:, -1]
-    seq_lens = attention_mask.sum(dim=1) - 1
+
+    seq_lens = attention_mask.sum(dim=1) - 1  # index of last real token
     batch_size = last_hidden_states.shape[0]
     return last_hidden_states[torch.arange(batch_size, device=last_hidden_states.device), seq_lens]
 
 
 def l2_normalize(x, eps: float = 1e-12):
     import torch
+
     return x / (torch.norm(x, p=2, dim=1, keepdim=True) + eps)
 
 
 def load_hf_embedder(cfg: Settings):
     import torch
-    from transformers import AutoTokenizer, AutoModel
+    from transformers import AutoModel, AutoTokenizer
 
     device = pick_device(cfg)
 
@@ -267,18 +272,27 @@ def load_hf_embedder(cfg: Settings):
     return tokenizer, model, device
 
 
-def batch_embedding_hf(tokenizer, model, device: str, texts: List[str], batch_size: int, max_length: int) -> List[List[float]]:
+def _batched(iterable: List[str], batch_size: int) -> Iterable[Tuple[int, int, List[str]]]:
+    n = len(iterable)
+    for start in range(0, n, batch_size):
+        end = min(start + batch_size, n)
+        yield start, end, iterable[start:end]
+
+
+def batch_embedding_hf(
+    tokenizer,
+    model,
+    device: str,
+    texts: List[str],
+    batch_size: int,
+    max_length: int,
+) -> List[List[float]]:
     import torch
 
     results: List[List[float]] = []
-    n = len(texts)
-    print(f"[EMB] Embedding {n} texts on {device} using {getattr(model, 'name_or_path', 'hf-model')}")
+    print(f"[EMB] Embedding {len(texts)} texts on {device} using {getattr(model, 'name_or_path', 'hf-model')}")
 
-    for i in range(math.ceil(n / batch_size)):
-        start = i * batch_size
-        end = min((i + 1) * batch_size, n)
-        batch_texts = texts[start:end]
-
+    for _, _, batch_texts in _batched(texts, batch_size):
         batch = tokenizer(
             batch_texts,
             padding=True,
@@ -290,22 +304,18 @@ def batch_embedding_hf(tokenizer, model, device: str, texts: List[str], batch_si
 
         outputs = model(**batch)
         emb = last_token_pool(outputs.last_hidden_state, batch["attention_mask"])
-        emb = l2_normalize(emb).detach().to("cpu")
+        emb = l2_normalize(emb).to("cpu", dtype=torch.float32)
         results.extend(emb.numpy().tolist())
+
 
     return results
 
 
 # -------------------------
-# Search Queries (Updated)
+# Search Queries
 # -------------------------
 
 def keyword_search(es: Elasticsearch, index_name: str, user_query: str, size: int = 5):
-    """
-    Updated keyword search for the new schema:
-    - searches title (text) and tags (keyword via terms query fallback)
-    For simplicity, we do multi_match on title + author.
-    """
     dsl = {
         "query": {
             "multi_match": {
@@ -314,41 +324,31 @@ def keyword_search(es: Elasticsearch, index_name: str, user_query: str, size: in
                 "type": "best_fields",
             }
         },
-        "sort": [{"views": "desc"}],  # example: sort by popularity
+        "sort": [{"views": "desc"}],
         "size": size,
     }
     return es.search(index=index_name, body=dsl)["hits"]["hits"]
 
 
 def facet_by_tags(es: Elasticsearch, index_name: str, size: int = 10):
-    """
-    Simple facet example: top tags by count.
-    """
     dsl = {
         "size": 0,
-        "aggs": {
-            "top_tags": {
-                "terms": {"field": "tags", "size": size}
-            }
-        },
+        "aggs": {"top_tags": {"terms": {"field": "tags", "size": size}}},
     }
     return es.search(index=index_name, body=dsl)["aggregations"]["top_tags"]["buckets"]
 
 
-def knn_search(es: Elasticsearch, index_name: str, query_vector: List[float], size: int = 5):
+def knn_search(es: Elasticsearch, index_name: str, query_vector: List[float], k: int = 50, size: int = 5):
+    """
+    Modern knn style:
+    - k controls candidate count (recall). size controls returned hits.
+    """
     dsl = {
-        "query": {
-            "bool": {
-                "must": [
-                    {
-                        "knn": {
-                            "field": "docEmbedding",
-                            "query_vector": query_vector,
-                        }
-                    }
-                ],
-                "minimum_should_match": 0,
-            }
+        "knn": {
+            "field": "docEmbedding",
+            "query_vector": query_vector,
+            "k": k,
+            "num_candidates": max(k, 100),
         },
         "size": size,
     }
@@ -363,34 +363,34 @@ def main():
     cfg = Settings()
     es = connect_es(cfg)
 
-    mapping = build_index_mapping(cfg.embedding_dims)
-    recreate_index(es, cfg.index_name, mapping)
+    tokenizer, model, device = load_hf_embedder(cfg)
 
     books = make_synthetic_books()
 
-    tokenizer, model, device = load_hf_embedder(cfg)
-
-    # Embed documents (title + author + tags)
+    # Embed documents
     doc_texts = [doc_to_embedding_text(b) for b in books]
     doc_embeddings = batch_embedding_hf(
-        tokenizer, model, device,
+        tokenizer,
+        model,
+        device,
         texts=doc_texts,
         batch_size=cfg.embedding_batch_size,
         max_length=cfg.embedding_max_length,
     )
 
-    # Index docs
-    ok = 0
-    for i, b in enumerate(books):
-        doc = dict(b)
-        doc["docEmbedding"] = doc_embeddings[i]
-        if add_doc(es, cfg.index_name, doc, doc_id=str(i)):
-            ok += 1
+    # Auto-detect dims from actual model output (and validate EMBED_DIMS if user set it)
+    actual_dims = len(doc_embeddings[0]) if doc_embeddings else cfg.embedding_dims
+    if actual_dims != cfg.embedding_dims:
+        print(f"[WARN] EMBED_DIMS={cfg.embedding_dims} but model produced dims={actual_dims}. Using dims={actual_dims} for mapping.")
 
+    mapping = build_index_mapping(actual_dims)
+    recreate_index(es, cfg.index_name, mapping)
+
+    # Bulk index
+    ok = bulk_index_books(es, cfg.index_name, books, doc_embeddings)
     print(f"[OK] Indexed {ok}/{len(books)} synthetic books into '{cfg.index_name}'")
 
-    # ---------- Updated user queries ----------
-    # Keyword query now targets title/author
+    # Keyword search
     user_query_kw = "Elasticsearch basics for search"
     hits_kw = keyword_search(es, cfg.index_name, user_query_kw, size=5)
     print(f"\n[Keyword Search] Query: {user_query_kw}")
@@ -398,23 +398,25 @@ def main():
         src = h.get("_source") or {}
         print("-", src.get("title"), "| author:", src.get("author"), "| views:", src.get("views"), "| score:", h.get("_score"))
 
-    # Facets (aggregations) on tags
+    # Facets
     buckets = facet_by_tags(es, cfg.index_name, size=10)
     print("\n[Facets] Top tags:")
     for b in buckets:
         print("-", b["key"], "=>", b["doc_count"])
 
-    # KNN query now embeds a library-style query and searches docEmbedding
+    # Vector KNN search
     user_query_vec = "Explain inverted index and doc values in Lucene"
     query_text = build_query_text(user_query_vec)
     q_emb = batch_embedding_hf(
-        tokenizer, model, device,
+        tokenizer,
+        model,
+        device,
         texts=[query_text],
         batch_size=1,
         max_length=cfg.embedding_max_length,
     )[0]
 
-    hits_vec = knn_search(es, cfg.index_name, q_emb, size=5)
+    hits_vec = knn_search(es, cfg.index_name, q_emb, k=50, size=5)
     print(f"\n[KNN Search] Query: {user_query_vec}")
     for h in hits_vec:
         src = h.get("_source") or {}
