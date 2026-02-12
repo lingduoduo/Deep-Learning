@@ -1,13 +1,24 @@
 # Elasticsearch Overview
 
 Elasticsearch is a **distributed, RESTful search and analytics engine** built on top of **Apache Lucene**.
- It is designed to be **fast, scalable, and easy to use**, and is one of the most popular **search-optimized databases** in production today.
+ It is designed to be **fast, scalable, and easy to use**, and is one of the most popular **search-optimized databases** in production today. Elasticsearch is widely used by companies such as **Netflix, Uber, Yelp**, and many others for search, analytics, and observability use cases.
 
-Elasticsearch is widely used by companies such as **Netflix, Uber, Yelp**, and many others for search, analytics, and observability use cases.
+- It's usually not a good idea to use Elasticsearch as your database. It's a search engine first and foremost, and while it's incredibly powerful it's not meant to replace a traditional database. Earlier versions of Elasticsearch had a lot of issues with consistency and durability, and many of the issues that plagued CouchDB are issues that have plagued Elasticsearch. All to say: if you need the data to persist, put it somewhere else.
+
+- Elasticsearch is designed for read-heavy workloads. If you're dealing with a write-heavy system, you might want to consider other options or implement a write buffer. While it might be convenient that you can add field for e.g. the number of likes on a post or impression counts, there's a lot of reasons this will cause ElasticSearch to struggle.
+
+- Ensure you account for the eventual consistency model of Elasticsearch. Your results will be stale, sometimes significantly. If your use-case can't tolerate this, you may need to consider alternatives.
+Elasticsearch is not a relational database. You'll want to denormalize your data as much as possible to make search queries efficient. This may require some additional transformation logic on the write side to make it happen. You should aim for your results to be provided by 1 or 2 queries.
+
+- Not all search problems require it! If your data is small (< 100k documents) or doesn't change often, there are many other and faster solutions. See if a simple query against your primary data store is sufficient and only consider Elasticsearch if you find that to be insufficient.
+
+- You need to be careful you're keeping Elasticsearch in sync with the underlying data. Failures in synchronization can lead to drift and are a common source of bugs with Elasticsearch.
+
+![Flow Diagram](flow.png)
 
 ------
 
-## Getting Started: Running Elasticsearch Locally
+# Basic Use
 
 You can quickly spin up a single-node Elasticsearch instance using Docker:
 
@@ -27,7 +38,107 @@ This setup is ideal for **local development and learning**, with security disabl
 
 ------
 
-## Core Concepts and Query Flow
+## 1. Create an Index
+
+A simple PUT request will create an index with a dynamic mapping, 1 shard, and 1 replica. These are parameters you can update after the index is created.
+```
+// PUT /books
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1
+  }
+}
+```
+
+## 2. Set a Mapping
+
+If dynamic mapping isn't appropriate (maybe most of the fields in my data aren't searchable), I can set a mapping for the index up front. This lets Elasticsearch know that certain fields should be treated as searchable and what types to expect in those fields.
+
+```
+// PUT /books/_mapping
+{
+  "properties": {
+    "title": { "type": "text" },
+    "author": { "type": "keyword" },
+    "description": { "type": "text" },
+    "price": { "type": "float" },
+    "publish_date": { "type": "date" },
+    "categories": { "type": "keyword" },
+    "reviews": {
+      "type": "nested",
+      "properties": {
+        "user": { "type": "keyword" },
+        "rating": { "type": "integer" },
+        "comment": { "type": "text" }
+      }
+    }
+  }
+}
+```
+
+## 3. Add Documents
+
+A **document** is the basic unit of data in Elasticsearch.
+
+### Characteristics
+
+- Stored as a **JSON blob**
+- Represents one logical record (e.g., product, article, log)
+- Schema-less at write time but governed by mappings
+
+Next need to add documents to the index! This is a simple HTTP POST to the /_doc endpoint.
+```
+// POST /books/_doc
+{
+  "title": "The Great Gatsby",
+  "author": "F. Scott Fitzgerald",
+  "description": "A novel about the American Dream in the Jazz Age",
+  "price": 9.99,
+  "publish_date": "1925-04-10",
+  "categories": ["Classic", "Fiction"],
+  "reviews": [
+    {
+      "user": "reader1",
+      "rating": 5,
+      "comment": "A masterpiece!"
+    },
+    {
+      "user": "reader2",
+      "rating": 4,
+      "comment": "Beautifully written, but a bit sad."
+    }
+  ]
+}
+```
+
+## 4. Updating Documents
+
+Updating a document is similar to creating a document, but you need to specify the document ID in the URL. We can raise our price by specifying the entire document:
+
+```
+// PUT /books/_doc/kLEHMYkBq7V9x4qGJOnh
+{
+  "title": "To Kill a Mockingbird",
+  "author": "Harper Lee",
+  "description": "A novel about racial injustice in the American South",
+  "price": 13.99,
+  "publish_date": "1960-07-11",
+  "categories": ["Classic", "Fiction"],
+  "reviews": [
+    {
+      "user": "reader3",
+      "rating": 5,
+      "comment": "Powerful and moving."
+    }
+  ]
+}
+
+```
+
+------
+
+## Query Flow
 
 The sections below provide a **concise, structured explanation of core Elasticsearch concepts**, organized around how a **user query** flows through the system and how data is modeled, searched, and returned.
 
@@ -59,19 +170,71 @@ A **user query** is the input that initiates a search.
 
 ### Common Sorting Criteria
 
-- Relevance score (`_score`) — default for full-text queries
-- Numeric or date fields (e.g., price, timestamp)
-- Keyword fields (lexicographic order)
-- Script-based sorting (advanced use cases)
+- Basic Sorting
+To sort results, you can use the sort parameter in your search query. Here's a basic example that sorts books by price in ascending order:
 
-### Examples
+```
+// GET /books/_search
+{
+  "sort": [
+    { "price": "asc" }
+  ],
+  "query": {
+    "match_all": {}
+  }
+}
+```
 
-- Sort by relevance first, then by recency
-- Sort products by price (ascending or descending)
+- Sorting by Script
+Elasticsearch also allows sorting based on custom scripts (using the "Painless" scripting language). This is useful when you need to sort by a computed value. Here's an example that sorts books by a discounted price (10% off) - which you would never do because the sort order is identical:
 
-------
+```
+// GET /books/_search
+{
+  "sort": [
+    {
+      "_script": {
+        "type": "number",
+        "script": {
+          "source": "doc['price'].value * 0.9"
+        },
+        "order": "asc"
+      }
+    }
+  ],
+  "query": {
+    "match_all": {}
+  }
+}
+```
 
-## 3. Facets (Aggregations)
+- Sorting on Nested Fields
+
+```
+// GET /books/_search
+{
+  "sort": [
+    {
+      "reviews.rating": {
+        "order": "desc",
+        "mode": "max",
+        "nested": {
+          "path": "reviews"
+        }
+      }
+    }
+  ],
+  "query": {
+    "match_all": {}
+  }
+}
+```
+
+- Relevance-Based Sorting
+
+If we don't specify a sort order, Elasticsearch sorts results by relevance score (_score). This is configurable, but the default scoring algorithm is related closely to TF-IDF (Term Frequency-Inverse Document Frequency).
+
+## Facets (Aggregations)
 
 In modern Elasticsearch, **facets are implemented as Aggregations**.
 
@@ -87,14 +250,7 @@ In modern Elasticsearch, **facets are implemented as Aggregations**.
 - **Metrics** — count, average, min, max
 - **Nested aggregations** — hierarchical summaries
 
-### Examples
-
-- Count of documents per category
-- Average price per brand
-
-------
-
-## 4. Results (Lists of Results)
+## Results (Lists of Results)
 
 Search results are returned as a **ranked list of documents**.
 
@@ -103,42 +259,134 @@ Search results are returned as a **ranked list of documents**.
 - `_id` — document identifier
 - `_score` — relevance score (if scoring applies)
 - `_source` — original JSON document
+
 - Highlighted fields (optional)
+
 - Match explanations (optional)
 
-### Pagination Options
+### 3. Pagination and Cursors
 
-- `from` + `size` — basic pagination
-- `search_after` — deep pagination
-- `scroll` — large batch processing
+Our last concern after specifying how we filter and sort our results is how to get them back to the user, basically how we can paginate them. Pagination in Elasticsearch allows you to retrieve a subset of search results, typically used to display results across multiple pages. While we need to determine how we're going to specify the results on each page (either by number or by filtering criteria), we also need to consider whether we want to maintain state or re-run our search query on every page/request.
 
-------
+Options
 
-## 5. Documents
+1. From/Size Pagination
 
-A **document** is the basic unit of data in Elasticsearch.
+This is the simplest form of pagination, where you specify:
 
-### Characteristics
-
-- Stored as a **JSON blob**
-- Represents one logical record (e.g., product, article, log)
-- Schema-less at write time but governed by mappings
-
-### Example Document
+- from: The starting index of the results
+- size: The number of results to return
 
 ```
+// GET /my_index/_search
 {
-  "title": "Elasticsearch Basics",
-  "author": "Emily",
-  "published_date": "2024-01-01",
-  "tags": ["search", "elasticsearch"],
-  "views": 1024
+  "from": 0,
+  "size": 10,
+  "query": {
+    "match": {
+      "title": "elasticsearch"
+    }
+  }
+}
+```
+However, this method becomes inefficient for deep pagination (e.g., beyond 10,000 results) due to the overhead of sorting and fetching all preceding documents. The cluster needs to retrieve and sort all these documents on each request, which can be prohibitively expensive.
+
+2. Search After
+
+This method is more efficient for deep pagination. It uses the sort values of the last result as the starting point for the next page. With these values we can restrict each page to only fetch the documents that come after the last document of the previous page, progressively restricting the search set.
+
+```
+// GET /my_index/_search
+{
+  "size": 10,
+  "query": {
+    "match": {
+      "title": "elasticsearch"
+    }
+  },
+  "sort": [
+    {"date": "desc"},
+    {"_id": "desc"}
+  ],
+  "search_after": [1463538857, "654323"]
 }
 ```
 
+By providing these values, Elasticsearch knows exactly where to start for the next page, making it very efficient even for deep pagination. This approach ensures that:
+
+- You don't miss any documents added in subsequent pages (even if new documents are added between requests).
+- You don't get duplicate results across pages.
+
+However, it requires maintaining state on the client side (remembering the sort values of the last document), and it doesn't allow random access to pages - you can only move forward through the results. This style of pagination also risks missing documents in prior pages if the underlying data is updated or deleted.
+
+3. Cursors
+
+Cursors in Elasticsearch provide a stateful way to paginate through search results, solving the problem of the documents shifting underneath you. Cursors maintain consistency across paginated requests, and thus require a lot more overhead than the pagination methods we've already discussed.
+
+Elasticsearch uses the point in time (PIT) API in conjunction with search_after for cursor-based pagination:
+
+Create a PIT:
+```
+// POST /my_index/_pit?keep_alive=1m
+```
+
+Use the PIT in searches:
+```
+// GET /_search
+{
+  "size": 10,
+  "query": {
+    "match": {
+      "title": "elasticsearch"
+    }
+  },
+  "pit": {
+    "id": "46To...",
+    "keep_alive": "1m"
+  },
+  "sort": [
+    {"_score": "desc"},
+    {"_id": "asc"}
+  ]
+}
+```
+
+For subsequent pages, add search_after:
+```
+// GET /_search
+{
+  "size": 10,
+  "query": {
+    "match": {
+      "title": "elasticsearch"
+    }
+  },
+  "pit": {
+    "id": "46To...",
+    "keep_alive": "1m"
+  },
+  "sort": [
+    {"_score": "desc"},
+    {"_id": "asc"}
+  ],
+  "search_after": [1.0, "1234"]
+}
+```
+
+Close the PIT when done:
+```
+// DELETE /_pit
+{
+  "id" : "46To..."
+}
+```
+Using PITs with search_after provides a consistent view of the data throughout the pagination process, even if the underlying index is being updated.
+
+
 ------
 
-## Cluster Architecture
+
+# Cluster Architecture
 
 Elasticsearch is a **distributed system** composed of multiple **nodes** working together as a cluster.
  Each node plays one or more specialized roles.
@@ -248,6 +496,7 @@ Lastly, Elasticsearch shards are 1:1 with Lucene indexes. Remember earlier that 
 Lucene indexes are made up of segments, the base unit of our search engine. Segments are immutable containers of indexed data. Let that word sink in for one second before we continue. Don't we need to be able to update, add, and delete documents from our Elasticsearch index?
 
 The way that Lucene indexes work is by batching writes and constructing segments. When we insert a document, we don't immediately store it in the index. Instead, we add it to a segment. When we have a batch of documents, we construct a segment and flush it out to disk.
+
 When segments get too numerous, we can merge them: we create a new segment from the segments we want to merge and remove the previous segments.
 
 Deletions are tricky: each segment actually has a set of deleted identifiers. When a segment is queried for data against a deleted document, it pretends it doesn't exist - but the data is still there! During merge operations, the merged segments clean up deleted documents.
@@ -270,7 +519,6 @@ This immutable architecture carries a number of benefits for Lucene:
 
 However, this design also introduces some challenges, such as the need for periodic segment merges and the temporary increased storage requirements before cleanup operations. Elasticsearch and Lucene have sophisticated mechanisms to manage these trade-offs effectively.
 
-
 ## Lucene Segment Internals
 
 Lucene segments are not just passive containers for documents. Each segment stores a set of **highly optimized data structures** that make fast search and analytics possible. Two of the most important of these structures are the **inverted index** and **doc values**.
@@ -287,6 +535,7 @@ At a high level, there are two fundamental ways to make data retrieval efficient
    - Scanning a list: `O(n)`
    - Searching a sorted list: `O(log n)`
    - Hash-based lookup: `O(1)`
+
 2. **Create additional data structures (copies of the data)** that are optimized for specific access patterns
 
 Lucene relies heavily on the second approach.
@@ -390,6 +639,8 @@ In short:
 - **Inverted index** → finds *which* documents match
 - **Doc values** → provide the data needed to *sort and aggregate* those documents efficiently
 
+To sort results, you can use the sort parameter in your search query. Here's a basic example that sorts books by price in ascending order:
+
 ------
 
 ## Coordinating Nodes
@@ -467,17 +718,3 @@ This optimization is essential for maintaining fast query performance as:
 - Query complexity increases
 - Clusters scale horizontally
 
-Using Elasticsearch
-
-- It's usually not a good idea to use Elasticsearch as your database. It's a search engine first and foremost, and while it's incredibly powerful it's not meant to replace a traditional database. Earlier versions of Elasticsearch had a lot of issues with consistency and durability, and many of the issues that plagued CouchDB are issues that have plagued Elasticsearch. All to say: if you need the data to persist, put it somewhere else.
-
-- Elasticsearch is designed for read-heavy workloads. If you're dealing with a write-heavy system, you might want to consider other options or implement a write buffer. While it might be convenient that you can add field for e.g. the number of likes on a post or impression counts, there's a lot of reasons this will cause ElasticSearch to struggle.
-
-- Ensure you account for the eventual consistency model of Elasticsearch. Your results will be stale, sometimes significantly. If your use-case can't tolerate this, you may need to consider alternatives.
-Elasticsearch is not a relational database. You'll want to denormalize your data as much as possible to make search queries efficient. This may require some additional transformation logic on the write side to make it happen. You should aim for your results to be provided by 1 or 2 queries.
-
-- Not all search problems require it! If your data is small (< 100k documents) or doesn't change often, there are many other and faster solutions. See if a simple query against your primary data store is sufficient and only consider Elasticsearch if you find that to be insufficient.
-
-- You need to be careful you're keeping Elasticsearch in sync with the underlying data. Failures in synchronization can lead to drift and are a common source of bugs with Elasticsearch.
-
-![Flow Diagram](flow.png)
