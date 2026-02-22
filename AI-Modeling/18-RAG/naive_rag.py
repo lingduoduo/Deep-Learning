@@ -13,7 +13,6 @@ es_tool = Elasticsearch(
     hosts=[
         "http://localhost:9200"
     ],
-    basic_auth=("elastic", "Dhf8IOJU"),
     verify_certs=True
 )
 
@@ -158,11 +157,11 @@ def get_detailed_instruct(task_description: str, query: str) -> str:
     return f'Instruct: {task_description}\nQuery:{query}'
 
 
-tokenizer = AutoTokenizer.from_pretrained("/data/zhengwj/model/Qwen/Qwen/Qwen3-Embedding-0.6B", padding_side='left')
-model = AutoModel.from_pretrained("/data/zhengwj/model/Qwen/Qwen/Qwen3-Embedding-0.6B")
+tokenizer = AutoTokenizer.from_pretrained("/model/Qwen/Qwen/Qwen3-Embedding-0.6B", padding_side='left')
+model = AutoModel.from_pretrained("/model/Qwen/Qwen/Qwen3-Embedding-0.6B")
 
 
-model_path = "/data/zhengwj/model/Qwen/Qwen3-14B"
+model_path = "/model/Qwen/Qwen3-14B"
 
 tokenizer_llm = AutoTokenizer.from_pretrained(model_path)
 llm = AutoModelForCausalLM.from_pretrained(model_path)
