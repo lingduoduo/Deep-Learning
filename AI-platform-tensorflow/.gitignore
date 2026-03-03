@@ -5,3 +5,10 @@ Untitled.ipynb
 *.egg-info
 *.pyc
 __pycache__
+
+# Secrets
+*.key
+*.pem
+*.p12
+*.pfx
+*.json
