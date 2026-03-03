@@ -731,3 +731,90 @@ This optimization is essential for maintaining fast query performance as:
 - Query complexity increases
 - Clusters scale horizontally
 
+
+---
+
+### Geohash
+
+1. Create an index
+```
+curl -X PUT "http://localhost:9200/places" -H 'Content-Type: application/json' -d '
+{
+  "mappings": {
+    "properties": {
+      "name": { "type": "keyword" },
+      "location": { "type": "geo_point" }
+    }
+  }
+}'
+```
+
+2. Index a few documents
+
+```
+curl -X POST "http://localhost:9200/places/_bulk" -H 'Content-Type: application/x-ndjson' -d '
+{"index":{}}
+{"name":"A","location":{"lat":40.741895,"lon":-73.989308}}
+{"index":{}}
+{"name":"B","location":{"lat":40.748817,"lon":-73.985428}}
+{"index":{}}
+{"name":"C","location":{"lat":40.730610,"lon":-73.935242}}
+'
+
+curl -X GET "http://localhost:9200/places/_search?pretty"
+```
+
+3. Geohash: bucket points into geohash cells
+
+```
+curl -X POST "http://localhost:9200/places/_search" -H 'Content-Type: application/json' -d '
+{
+  "size": 0,
+  "aggs": {
+    "cells": {
+      "geohash_grid": {
+        "field": "location",
+        "precision": 7
+      }
+    }
+  }
+}'
+
+curl -X POST "http://localhost:9200/places/_search" -H 'Content-Type: application/json' -d '
+{
+  "size": 0,
+  "query": {
+    "geo_bounding_box": {
+      "location": {
+        "top_left":     {"lat": 40.80, "lon": -74.05},
+        "bottom_right": {"lat": 40.70, "lon": -73.90}
+      }
+    }
+  },
+  "aggs": {
+    "cells": {
+      "geohash_grid": {
+        "field": "location",
+        "precision": 7
+      }
+    }
+  }
+}'
+```
+
+4. Quadtree-style tiling: bucket points into map tiles (geotile_grid)
+
+```
+curl -X POST "http://localhost:9200/places/_search" -H 'Content-Type: application/json' -d '
+{
+  "size": 0,
+  "aggs": {
+    "tiles": {
+      "geotile_grid": {
+        "field": "location",
+        "precision": 10
+      }
+    }
+  }
+}'
+```
