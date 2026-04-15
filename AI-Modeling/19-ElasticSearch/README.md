@@ -76,7 +76,7 @@ python Geohash/optimized_geohash.py
 python Imagehash/optimized_imagehash.py index --image-dir Imagehash/test_images --recreate
 
 # ImageHash: recommend similar images using a query image
-python Imagehash/optimized_imagehash.py recommend --query-image Imagehash/test_images/1.png --k 3
+python Imagehash/optimized_imagehash.py recommend --query-image Imagehash/test_images/1.png --k 5
 ```
 
 4. Test image embeddings (optional):
