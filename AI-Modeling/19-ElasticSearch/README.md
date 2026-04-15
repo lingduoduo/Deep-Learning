@@ -36,18 +36,57 @@ Concepts:
 You can quickly spin up a single-node Elasticsearch instance using Docker:
 
 ```
+brew install colima docker
+colima start --memory 4 --cpu 2
 docker --version
+docker pull docker.elastic.co/elasticsearch/elasticsearch:8.11.3
+```
 
+This setup is ideal for **local development and learning**, with security disabled and a single-node cluster configuration.
+
+## Installation
+
+1. Install dependencies:
+```bash
+conda create -n img-search python=3.10 -y
+conda activate img-search
+pip install -r requirements.txt
+```
+
+2. Start Elasticsearch with Docker:
+```bash
 docker run -d \
   --name elasticsearch \
   -p 9200:9200 \
   -p 9300:9300 \
   -e "discovery.type=single-node" \
   -e "xpack.security.enabled=false" \
+  -e "ES_JAVA_OPTS=-Xms1g -Xmx1g" \
   docker.elastic.co/elasticsearch/elasticsearch:8.11.3
+
+curl http://localhost:9200
 ```
 
-This setup is ideal for **local development and learning**, with security disabled and a single-node cluster configuration.
+3. Run optimized examples:
+```bash
+# Geohash optimization
+python Geohash/optimized_geohash.py
+
+# ImageHash: index the sample images into Elasticsearch
+python Imagehash/optimized_imagehash.py index --image-dir Imagehash/test_images --recreate
+
+# ImageHash: recommend similar images using a query image
+python Imagehash/optimized_imagehash.py recommend --query-image Imagehash/test_images/1.png --k 3
+```
+
+4. Test image embeddings (optional):
+```bash
+# Export CLIP embeddings for the sample images to JSON
+python Imagehash/embeddings.py --image-dir Imagehash/test_images --output Imagehash/image_embeddings.json
+
+# Recommend similar images using an already indexed filename
+python Imagehash/optimized_imagehash.py recommend --image-id 1.png --k 3
+```
 
 ------
 
@@ -399,7 +438,94 @@ Using PITs with search_after provides a consistent view of the data throughout t
 ------
 
 
-# Cluster Architecture
+# Elasticsearch Optimizations
+
+## Geohash Optimization
+
+For geospatial search optimization, use the following strategies:
+
+### Index Configuration
+- Use `geo_point` field type for coordinates
+- Enable geohash indexing with appropriate precision
+- Configure multiple shards for large datasets
+- Use `best_compression` codec for storage efficiency
+
+### Query Optimization
+- Use `geo_distance` queries for proximity searches
+- Leverage `geo_bounding_box` for rectangular areas
+- Implement `geohash_grid` aggregations for clustering
+- Consider `geotile_grid` as alternative for web mapping
+
+### Performance Tips
+- Pre-compute geohashes for custom filtering
+- Use appropriate precision levels (4-7 characters)
+- Implement caching for frequent queries
+- Monitor query performance with `_profile` API
+
+See `Geohash/optimized_geohash.py` for implementation example.
+
+## ImageHash Optimization
+
+For image similarity search using dense vectors:
+
+#### Setup
+- Uses **CLIP (Contrastive Language-Image Pretraining)** for image embeddings
+- Automatically downloads model on first run
+- Supports both image-to-image and text-to-image search
+- GPU acceleration when available
+
+#### Index Configuration
+- Use `dense_vector` field with cosine similarity
+- Use 1 shard and 0 replicas for this local single-node sample
+- Store image metadata alongside the embedding for filtering and inspection
+- Keep the index refresh interval short for quick local iteration
+
+#### Vector Search Optimization
+- Use KNN queries for similarity search
+- Implement image-to-image and text-to-image search
+- Set `num_candidates` higher than `k` for better recall
+- Normalize vectors for cosine similarity
+
+#### Features
+- **Embedding generation**: Export CLIP image vectors to JSON for reuse
+- **Image similarity search**: Find visually similar images from `Imagehash/test_images`
+- **Text-to-image search**: Search images using natural language
+- **Elasticsearch recommendations**: Use KNN over dense vectors for nearest neighbors
+- **Batch processing**: Bulk index images efficiently
+
+#### Usage Examples
+```bash
+# 1. Generate reusable CLIP embeddings for the sample images
+python Imagehash/embeddings.py --image-dir Imagehash/test_images
+
+# 2. Index those images into Elasticsearch
+python Imagehash/optimized_imagehash.py index --image-dir Imagehash/test_images --recreate
+
+# 3. Query recommendations from an input image
+python Imagehash/optimized_imagehash.py recommend --query-image Imagehash/test_images/1.png --k 5
+
+# 4. Query recommendations from an indexed image id
+python Imagehash/optimized_imagehash.py recommend --image-id 1.png --k 5
+
+# 5. Run CLIP text-to-image search against the same index
+python Imagehash/optimized_imagehash.py text-search "a narrow tall icon" --k 5
+```
+
+See `Imagehash/optimized_imagehash.py` for complete implementation.
+
+### General Optimization Guidelines
+
+1. **Hardware**: Allocate sufficient RAM (min 4GB for small datasets)
+2. **JVM Settings**: Configure `-Xms` and `-Xmx` appropriately
+3. **Index Settings**: Choose right number of shards/replicas
+4. **Mapping**: Use appropriate field types and analyzers
+5. **Query Design**: Minimize result sets, use filters effectively
+6. **Monitoring**: Use `_cluster/stats` and `_nodes/stats` for insights
+
+
+---
+
+### Geohash
 
 Elasticsearch is a **distributed system** composed of multiple **nodes** working together as a cluster.
  Each node plays one or more specialized roles.

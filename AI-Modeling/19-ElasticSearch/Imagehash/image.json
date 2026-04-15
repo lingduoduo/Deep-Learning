@@ -1,0 +1,26 @@
+{
+  "mappings": {
+    "properties": {
+      "filename": { "type": "keyword" },
+      "path": { "type": "keyword" },
+      "category": { "type": "keyword" },
+      "description": { "type": "text" },
+      "metadata": {
+        "properties": {
+          "width": { "type": "integer" },
+          "height": { "type": "integer" },
+          "format": { "type": "keyword" },
+          "mode": { "type": "keyword" },
+          "size_bytes": { "type": "long" },
+          "indexed_at": { "type": "date" }
+        }
+      },
+      "image_vector": {
+        "type": "dense_vector",
+        "dims": 512,
+        "index": true,
+        "similarity": "cosine"
+      }
+    }
+  }
+}
