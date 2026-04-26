@@ -58,6 +58,3 @@ Each run prints:
 - peak GPU memory in GB
 - total training time
 
-## Resume Bullet
-
-Built a reproducible Google Colab benchmark for LLM training optimization using PyTorch and DeepSpeed ZeRO, comparing baseline training with ZeRO-2/ZeRO-3, mixed precision, and gradient accumulation while tracking tokens/sec, peak GPU memory, and training loss.

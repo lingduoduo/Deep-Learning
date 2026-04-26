@@ -37,7 +37,3 @@ This is not a full FlashAttention implementation. It is a FlashAttention-inspire
 ```bash
 !python attention_baseline.py --batch 4 --heads 8 --seq_len 512 --head_dim 64 --iters 20
 ```
-
-## Resume Bullet
-
-Built a Colab-compatible Triton GPU kernel optimization demo inspired by FlashAttention, implementing a fused row-wise softmax kernel and benchmarking latency improvements against PyTorch baselines while analyzing memory movement and kernel execution tradeoffs.
