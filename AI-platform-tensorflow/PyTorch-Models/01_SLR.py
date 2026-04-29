@@ -43,7 +43,7 @@ for epoch in range(epochs):
     for batch_X, batch_y in dataloader:
         optimizer.zero_grad()
         prediction = model(batch_X)
-        loss = criterion(batch_y, prediction)
+        loss = criterion(prediction, batch_y)
         loss.backward()
         optimizer.step()
     
@@ -54,7 +54,7 @@ for epoch in range(epochs):
 print(f"Learned weight: {w.item():.4f}, Learned bias: {b.item():.4f}")
 
 
-X_test = torch.tensor([[4.0], [7.0]], dtype=torch.float32)
+X_test = torch.tensor([4.0], [7.0])
 with torch.no_grad():
     predictions = model(X_test)
     print(f"Predictions for {X_test.tolist()}: {predictions.tolist()}")
