@@ -53,6 +53,7 @@ for epoch in range(epochs):
         optimizer.step()
     print(f"Epoch [{epoch + 1}/{epochs}], Loss: {loss.item():.4f}")
 
+
 correct = 0
 total = 0
 with torch.no_grad():
