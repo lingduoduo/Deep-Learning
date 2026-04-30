@@ -6,17 +6,17 @@ import torch.nn.functional as F
 # 作用：直接砍掉长尾的低概率词，防止生成生僻字或乱码。
 # 缺点：k 是固定的。如果模型很自信（某个词概率 90%），k 太大也会采样到噪音；如果模型很犹豫（概率很平），k 太小会限制多样性。
 
-# Top-p (Nucleus) 采样：
-# 做法：将词按概率从大到小排序，依次累加概率，直到累加和超过 p (比如 0.9)。保留这些词，剩下的截断，重新归一化，再采样。
-# 作用：动态调整候选词数量。模型自信时候选词少，模型犹豫时候选词多。
-# 现状：目前 LLM 推理中，Top-p 比 Top-k 更常用，或者两者结合。
-
 def top_k_filtering(logits, top_k=50, temperature=1.0, filter_value=-float('Inf')):
     logits = logits / temperature
 
     idx_to_remove = logits < torch.top_k(logits, top_k)[0][..., -1, None]
     logits[idx_to_remove] = filter_value
     return logits
+
+# Top-p (Nucleus) 采样：
+# 做法：将词按概率从大到小排序，依次累加概率，直到累加和超过 p (比如 0.9)。保留这些词，剩下的截断，重新归一化，再采样。
+# 作用：动态调整候选词数量。模型自信时候选词少，模型犹豫时候选词多。
+# 现状：目前 LLM 推理中，Top-p 比 Top-k 更常用，或者两者结合。
 
 def top_p_filtering(logits, top_p=0.9, temperature=1.0, filter_value=-float("inf"), min_tokens_to_keep=1):
     logits = logits / temperature

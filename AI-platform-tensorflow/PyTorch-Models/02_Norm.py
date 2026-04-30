@@ -5,9 +5,6 @@ import torch.nn as nn
 # 层归一化 (Layer Normalization)
 # 公式: y = gamma * (x - mean) / sqrt(var + eps) + beta
 
-# RMS 归一化 (Root Mean Square Layer Normalization)
-# 公式: y = gamma * x / RMS(x), 其中 RMS(x) = sqrt(mean(x^2) + eps)
-
 class LayerNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-5):
         super().__init__()
@@ -20,6 +17,9 @@ class LayerNorm(nn.Module):
         var = x.var(dim=-1, keepdim=True, unbiased=False)
         x_norm = (x - mean) / torch.sqrt(var +self.eps)
         return self.gamma * x_norm + self.beta
+
+# RMS 归一化 (Root Mean Square Layer Normalization)
+# 公式: y = gamma * x / RMS(x), 其中 RMS(x) = sqrt(mean(x^2) + eps)
 
 class RMSNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-5):
