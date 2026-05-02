@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
 import math
+import numpy as np
 
+# Self-Attention 与 Multi-Head Attention (MHA)
 
 class ScaledDotProductAttention(nn.Module):
     def __init__(self):
