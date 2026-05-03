@@ -18,7 +18,7 @@ setup(
             'tensorflow==2.8.1',
         ],
         'gpu': [
-            'tensorflow-gpu==2.0.0b1',
+            'tensorflow-gpu==2.12.0',
         ],
     },
 )
