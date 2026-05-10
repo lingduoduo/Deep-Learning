@@ -9,6 +9,7 @@ import torch.optim as optim
 # 1. Fundamental GRPO Utility Functions
 # ============================================================
 
+
 def masked_mean(values, mask):
     """
     Compute the mean over valid positions only.
@@ -85,6 +86,7 @@ def reverse_kl_penalty(policy_log_probs, ref_log_probs):
 # 2. Policy Network
 # ============================================================
 
+
 class Policy(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=64, lr=1e-3):
         super().__init__()
@@ -112,6 +114,7 @@ class Policy(nn.Module):
 # ============================================================
 # 3. GRPO Trainer
 # ============================================================
+
 
 class GRPOTrainer:
     def __init__(
@@ -177,16 +180,13 @@ class GRPOTrainer:
                 / flat_mask.sum().clamp_min(1e-8)
             ).item(),
             "mean_advantage": (
-                (advantages * flat_mask).sum()
-                / flat_mask.sum().clamp_min(1e-8)
+                (advantages * flat_mask).sum() / flat_mask.sum().clamp_min(1e-8)
             ).item(),
             "mean_ratio": (
-                (ratios * flat_mask).sum()
-                / flat_mask.sum().clamp_min(1e-8)
+                (ratios * flat_mask).sum() / flat_mask.sum().clamp_min(1e-8)
             ).item(),
             "mean_kl": (
-                (kl_penalty * flat_mask).sum()
-                / flat_mask.sum().clamp_min(1e-8)
+                (kl_penalty * flat_mask).sum() / flat_mask.sum().clamp_min(1e-8)
             ).item(),
         }
 
@@ -224,6 +224,7 @@ class GRPOTrainer:
 # ============================================================
 # 4. Dummy Grouped Bandit Example
 # ============================================================
+
 
 def reward_function(states, actions, reward_matrix):
     """
@@ -275,6 +276,7 @@ def generate_dummy_group_data(
 # ============================================================
 # 5. Training Demo
 # ============================================================
+
 
 def run_demo(
     steps=40,
