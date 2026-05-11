@@ -5,12 +5,6 @@ from torch.utils.data import Dataset, DataLoader
 
 import pandas as pd
 
-X = torch.rand(100, 1) * 10
-y = 2 * X + torch.rand(100, 1)
-data = torch.cat((X, y), dim=1)
-df = pd.DataFrame(data.numpy(), columns=['X', 'y'])
-df.to_csv('data.csv', index = False)
-
 class LinearRegressionData(Dataset):
     def __init__(self, file):
         df = pd.read_csv(file)
@@ -30,6 +24,12 @@ class LinearRegressionModel(nn.Module):
     
     def forward(self, x):
         return self.linear(x)
+    
+X = torch.rand(100, 1) * 10
+y = 2 * X + torch.rand(100, 1)
+data = torch.cat((X, y), dim=1)
+df = pd.DataFrame(data.numpy(), columns=['X', 'y'])
+df.to_csv('data.csv', index = False)
 
 dataset = LinearRegressionData("data.csv")
 dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
@@ -53,8 +53,7 @@ for epoch in range(epochs):
 [w, b] = model.linear.parameters()
 print(f"Learned weight: {w.item():.4f}, Learned bias: {b.item():.4f}")
 
-
-X_test = torch.tensor([4.0], [7.0])
+X_test = torch.tensor([[4.0], [7.0]])
 with torch.no_grad():
     predictions = model(X_test)
     print(f"Predictions for {X_test.tolist()}: {predictions.tolist()}")

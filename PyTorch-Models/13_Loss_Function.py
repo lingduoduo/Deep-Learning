@@ -100,16 +100,9 @@ class CLIPContrastiveLoss(nn.Module):
         loss = (loss_i + loss_t) / 2
         return loss
 
-batch_size = 4
-dim = 512
-
-image_embeds = torch.randn(batch_size, dim)
-text_embeds = torch.randn(batch_size, dim)
+image_embeds = torch.randn(4, 512)
+text_embeds = torch.randn(4, 512)
 
 criterion = CLIPContrastiveLoss(temperature=0.07)
 loss = criterion(image_embeds, text_embeds)
-
 print(loss)
-
-
-

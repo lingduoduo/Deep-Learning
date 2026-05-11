@@ -2,9 +2,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-X = torch.rand(100, 1) * 10
-y = 2 * X + 3 + torch.rand(100, 1)
-
 class CustomActivationModel(nn.Module):
     def __init__(self):
         super(CustomActivationModel, self).__init__()
@@ -17,6 +14,9 @@ class CustomActivationModel(nn.Module):
 model = CustomActivationModel()
 criterion = nn.MSELoss()
 optimizer = optim.SGD(model.parameters(), lr=0.01)
+
+X = torch.rand(100, 1) * 10
+y = 2 * X + 3 + torch.rand(100, 1)
 
 epochs = 10
 for epoch in range(epochs):

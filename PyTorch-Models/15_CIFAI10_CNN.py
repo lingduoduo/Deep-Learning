@@ -6,18 +6,6 @@ import torchvision
 import torchvision.transforms as transforms
 
 
-
-transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-])
-
-train_dataset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
-
-test_dataset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
-test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=64, shuffle=False)
-
 class CNNModel(nn.Module):
     def __init__(self, in_channels=3, num_classes=10):
         super(CNNModel, self).__init__()
@@ -36,11 +24,21 @@ class CNNModel(nn.Module):
     
     def forward(self, x):
         return self.classifier(self.features(x))
+    
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+])
+
+train_dataset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
+
+test_dataset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=64, shuffle=False)
 
 model = CNNModel()
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.00001)
-
 
 epochs = 10
 for epoch in range(epochs):
@@ -52,7 +50,6 @@ for epoch in range(epochs):
         loss.backward()
         optimizer.step()
     print(f"Epoch [{epoch + 1}/{epochs}], Loss: {loss.item():.4f}")
-
 
 correct = 0
 total = 0

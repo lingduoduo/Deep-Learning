@@ -3,9 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 
 
-X = torch.rand(100, 2) * 10
-y = (X[:, 0] + X[:, 1] * 2).unsqueeze(1) + torch.randn(100, 1) 
-
 class DNN(nn.Module):
     def __init__(self, input_dim=2, hidden_dim=10, output_dim=1):
         super().__init__()
@@ -15,10 +12,13 @@ class DNN(nn.Module):
             nn.Linear(hidden_dim, output_dim)
         )
 
-    def forword(self, x):
+    def forward(self, x):
         if x.dim() == 1:
             x = x.unsqueeze(0)
         return self.network(x)
+    
+X = torch.rand(100, 2) * 10
+y = (X[:, 0] + X[:, 1] * 2).unsqueeze(1) + torch.randn(100, 1) 
 
 model = DNN()
 criterion = nn.MSELoss()
