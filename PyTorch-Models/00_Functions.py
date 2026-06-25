@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import math
 
 
 def relu(x: torch.Tensor) -> torch.Tensor:
@@ -65,4 +66,61 @@ emb = MyEmbedding(10, 4)
 idx = torch.tensor([0, 3, 7])
 print('Output shape:', emb(idx).shape)
 print('Matches manual:', torch.equal(emb(idx)[0], emb.weight[0]))
+
+
+# GELU (Gaussian Error Linear Unit) activation
+def my_gelu(x):
+    return 0.5 * x * ( 1 + torch.erf(x / math.sqrt(2.0)))
+x = torch.tensor([-2., -1., 0., 1., 2.])
+print('Output:', my_gelu(x))
+print('Ref:   ', torch.nn.functional.gelu(x))
+
+
+# Kaiming Initialization
+def kaiming_init(weight):
+    fan_in = weight.shape[1] if weight.dim() < 2 else weight.shape[0]
+    std = math.sqrt(2/fan_in)
+    with torch.no_grad():
+        weight.normal_(0, std)
+    return weight
+w = torch.empty(256, 512)
+kaiming_init(w)
+print(f'Mean: {w.mean():.4f} (expect ~0)')
+print(f'Std:  {w.std():.4f} (expect {math.sqrt(2/512):.4f})')
+
+
+# Gradient Norm Clipping
+def clip_grad_norm(parameters, max_norm):
+    parameters = [p for p in parameters if p.grad is not None]
+    total_norm = torch.sqrt(sum(p.grad.norm() ** 2 for p in parameters))
+    clip_coef = max_norm / (total_norm + 1e-6)
+    if clip_coef < 1:
+        for p in parameters:
+            p.grad.mul_(clip_coef)
+    return total_norm.item()
+p = torch.randn(100, requires_grad=True)
+(p * 10).sum().backward()
+print('Before:', p.grad.norm().item())
+orig = clip_grad_norm([p], max_norm=1.0)
+print('After: ', p.grad.norm().item())
+print('Original norm:', orig)
+
+
+Gradient Accumulation
+def accumulated_step(model, optimizer, loss_fn, micro_batches):
+    optimizer.zero_grad()
+    total_loss = 0.0
+    n = len(micro_batches)
+    for x, y in micro_batches:
+        loss = loss_fn(model(x), y) / n
+        loss.backward()
+        total_loss += loss.item()
+    optimizer.step()
+    return loss
+model = nn.Linear(4, 2)
+opt = torch.optim.SGD(model.parameters(), lr=0.01)
+loss = accumulated_step(model, opt, nn.MSELoss(),
+    [(torch.randn(2, 4), torch.randn(2, 2)) for _ in range(4)])
+print('Loss:', loss)
+
 
