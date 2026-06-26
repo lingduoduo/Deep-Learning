@@ -1,603 +1,358 @@
-import math
-import random
+import torch
+import torch.nn as nn
+import struct
+import gzip
+import urllib.request
+import os
+import time
 
 
-class Module:
-    def __init__(self):
-        self.training = True
-
-    def forward(self, x):
-        raise NotImplementedError
-
-    def backward(self, grad):
-        raise NotImplementedError
-
-    def parameters(self):
-        return []
-
-    def train(self):
-        self.training = True
-
-    def eval(self):
-        self.training = False
+MNIST_BASE_URL = "https://storage.googleapis.com/cvdf-datasets/mnist/"
+MNIST_FILES = [
+    "train-images-idx3-ubyte.gz",
+    "train-labels-idx1-ubyte.gz",
+    "t10k-images-idx3-ubyte.gz",
+    "t10k-labels-idx1-ubyte.gz",
+]
 
 
-class Linear(Module):
-    def __init__(self, fan_in, fan_out):
-        super().__init__()
-        std = math.sqrt(2.0 / fan_in)
-        self.weights = [[random.gauss(0, std) for _ in range(fan_in)] for _ in range(fan_out)]
-        self.biases = [0.0] * fan_out
-        self.weight_grads = [[0.0] * fan_in for _ in range(fan_out)]
-        self.bias_grads = [0.0] * fan_out
-        self.fan_in = fan_in
-        self.fan_out = fan_out
-        self.input = None
-
-    def forward(self, x):
-        self.input = x
-        output = []
-        for i in range(self.fan_out):
-            val = self.biases[i]
-            for j in range(self.fan_in):
-                val += self.weights[i][j] * x[j]
-            output.append(val)
-        return output
-
-    def backward(self, grad):
-        input_grad = [0.0] * self.fan_in
-        for i in range(self.fan_out):
-            self.bias_grads[i] += grad[i]
-            for j in range(self.fan_in):
-                self.weight_grads[i][j] += grad[i] * self.input[j]
-                input_grad[j] += grad[i] * self.weights[i][j]
-        return input_grad
-
-    def parameters(self):
-        params = []
-        for i in range(self.fan_out):
-            for j in range(self.fan_in):
-                params.append((self.weights, i, j, self.weight_grads))
-            params.append((self.biases, i, None, self.bias_grads))
-        return params
+def download_mnist(path="./mnist_data"):
+    os.makedirs(path, exist_ok=True)
+    for f in MNIST_FILES:
+        filepath = os.path.join(path, f)
+        if not os.path.exists(filepath):
+            print(f"  Downloading {f}...")
+            urllib.request.urlretrieve(MNIST_BASE_URL + f, filepath)
 
 
-class ReLU(Module):
+def load_images(filepath):
+    with gzip.open(filepath, "rb") as f:
+        magic, num, rows, cols = struct.unpack(">IIII", f.read(16))
+        data = f.read()
+        images = torch.frombuffer(bytearray(data), dtype=torch.uint8)
+        images = images.reshape(num, rows * cols).float() / 255.0
+    return images
+
+
+def load_labels(filepath):
+    with gzip.open(filepath, "rb") as f:
+        magic, num = struct.unpack(">II", f.read(8))
+        data = f.read()
+        labels = torch.frombuffer(bytearray(data), dtype=torch.uint8).long()
+    return labels
+
+
+class MNISTModel(nn.Module):
     def __init__(self):
         super().__init__()
-        self.mask = None
+        self.net = nn.Sequential(
+            nn.Linear(784, 256),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(128, 10),
+        )
 
     def forward(self, x):
-        self.mask = [1.0 if v > 0 else 0.0 for v in x]
-        return [max(0.0, v) for v in x]
-
-    def backward(self, grad):
-        return [g * m for g, m in zip(grad, self.mask)]
+        return self.net(x)
 
 
-class Sigmoid(Module):
+class MNISTModelWithBatchNorm(nn.Module):
     def __init__(self):
         super().__init__()
-        self.output = None
+        self.net = nn.Sequential(
+            nn.Linear(784, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 10),
+        )
 
     def forward(self, x):
-        self.output = []
-        for v in x:
-            v = max(-500, min(500, v))
-            self.output.append(1.0 / (1.0 + math.exp(-v)))
-        return self.output
-
-    def backward(self, grad):
-        return [g * o * (1 - o) for g, o in zip(grad, self.output)]
+        return self.net(x)
 
 
-class Tanh(Module):
-    def __init__(self):
-        super().__init__()
-        self.output = None
-
-    def forward(self, x):
-        self.output = [math.tanh(v) for v in x]
-        return self.output
-
-    def backward(self, grad):
-        return [g * (1 - o * o) for g, o in zip(grad, self.output)]
-
-
-class Dropout(Module):
-    def __init__(self, p=0.5):
-        super().__init__()
-        self.p = p
-        self.mask = None
-
-    def forward(self, x):
-        if not self.training:
-            return x
-        self.mask = [0.0 if random.random() < self.p else 1.0 / (1 - self.p) for _ in x]
-        return [v * m for v, m in zip(x, self.mask)]
-
-    def backward(self, grad):
-        if self.mask is None:
-            return grad
-        return [g * m for g, m in zip(grad, self.mask)]
+def train_one_epoch(model, loader, criterion, optimizer, device):
+    model.train()
+    total_loss = 0
+    correct = 0
+    total = 0
+    for images, labels in loader:
+        images, labels = images.to(device), labels.to(device)
+        optimizer.zero_grad()
+        outputs = model(images)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+        total_loss += loss.item() * images.size(0)
+        _, predicted = outputs.max(1)
+        correct += predicted.eq(labels).sum().item()
+        total += labels.size(0)
+    return total_loss / total, correct / total
 
 
-class BatchNorm(Module):
-    def __init__(self, size, momentum=0.1, eps=1e-5):
-        super().__init__()
-        self.size = size
-        self.gamma = [1.0] * size
-        self.beta = [0.0] * size
-        self.gamma_grads = [0.0] * size
-        self.beta_grads = [0.0] * size
-        self.running_mean = [0.0] * size
-        self.running_var = [1.0] * size
-        self.momentum = momentum
-        self.eps = eps
-        self.x_norm = None
-        self.std_inv = None
-        self.batch_input = None
-
-    def forward_batch(self, batch):
-        batch_size = len(batch)
-        output_batch = []
-
-        if self.training:
-            mean = [0.0] * self.size
-            for sample in batch:
-                for j in range(self.size):
-                    mean[j] += sample[j]
-            mean = [m / batch_size for m in mean]
-
-            var = [0.0] * self.size
-            for sample in batch:
-                for j in range(self.size):
-                    var[j] += (sample[j] - mean[j]) ** 2
-            var = [v / batch_size for v in var]
-
-            self.std_inv = [1.0 / math.sqrt(v + self.eps) for v in var]
-
-            self.x_norm = []
-            self.batch_input = batch
-            for sample in batch:
-                normed = [(sample[j] - mean[j]) * self.std_inv[j] for j in range(self.size)]
-                self.x_norm.append(normed)
-                output = [self.gamma[j] * normed[j] + self.beta[j] for j in range(self.size)]
-                output_batch.append(output)
-
-            for j in range(self.size):
-                self.running_mean[j] = (1 - self.momentum) * self.running_mean[j] + self.momentum * mean[j]
-                self.running_var[j] = (1 - self.momentum) * self.running_var[j] + self.momentum * var[j]
-        else:
-            std_inv = [1.0 / math.sqrt(v + self.eps) for v in self.running_var]
-            for sample in batch:
-                normed = [(sample[j] - self.running_mean[j]) * std_inv[j] for j in range(self.size)]
-                output = [self.gamma[j] * normed[j] + self.beta[j] for j in range(self.size)]
-                output_batch.append(output)
-
-        return output_batch
-
-    def forward(self, x):
-        if self.training:
-            for j in range(self.size):
-                self.running_mean[j] = (1 - self.momentum) * self.running_mean[j] + self.momentum * x[j]
-
-            self.std_inv = [1.0 / math.sqrt(v + self.eps) for v in self.running_var]
-            self.x_norm = [(x[j] - self.running_mean[j]) * self.std_inv[j] for j in range(self.size)]
-            return [self.gamma[j] * self.x_norm[j] + self.beta[j] for j in range(self.size)]
-        else:
-            std_inv = [1.0 / math.sqrt(v + self.eps) for v in self.running_var]
-            normed = [(x[j] - self.running_mean[j]) * std_inv[j] for j in range(self.size)]
-            return [self.gamma[j] * normed[j] + self.beta[j] for j in range(self.size)]
-
-    def backward(self, grad):
-        if self.x_norm is None:
-            return grad
-        x_norm = self.x_norm if not isinstance(self.x_norm[0], list) else self.x_norm[0]
-        for j in range(self.size):
-            self.gamma_grads[j] += x_norm[j] * grad[j]
-            self.beta_grads[j] += grad[j]
-        return [grad[j] * self.gamma[j] * self.std_inv[j] for j in range(self.size)]
-
-    def parameters(self):
-        params = []
-        for j in range(self.size):
-            params.append((self.gamma, j, None, self.gamma_grads))
-            params.append((self.beta, j, None, self.beta_grads))
-        return params
+def evaluate(model, loader, criterion, device):
+    model.eval()
+    total_loss = 0
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for images, labels in loader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            total_loss += loss.item() * images.size(0)
+            _, predicted = outputs.max(1)
+            correct += predicted.eq(labels).sum().item()
+            total += labels.size(0)
+    return total_loss / total, correct / total
 
 
-class Sequential(Module):
-    def __init__(self, *modules):
-        super().__init__()
-        self.modules = list(modules)
-
-    def forward(self, x):
-        for module in self.modules:
-            x = module.forward(x)
-        return x
-
-    def backward(self, grad):
-        for module in reversed(self.modules):
-            grad = module.backward(grad)
-        return grad
-
-    def parameters(self):
-        params = []
-        for module in self.modules:
-            params.extend(module.parameters())
-        return params
-
-    def train(self):
-        self.training = True
-        for module in self.modules:
-            module.train()
-
-    def eval(self):
-        self.training = False
-        for module in self.modules:
-            module.eval()
-
-    def count_parameters(self):
-        return len(self.parameters())
+def load_data(data_path="./mnist_data"):
+    download_mnist(data_path)
+    train_images = load_images(os.path.join(data_path, "train-images-idx3-ubyte.gz"))
+    train_labels = load_labels(os.path.join(data_path, "train-labels-idx1-ubyte.gz"))
+    test_images = load_images(os.path.join(data_path, "t10k-images-idx3-ubyte.gz"))
+    test_labels = load_labels(os.path.join(data_path, "t10k-labels-idx1-ubyte.gz"))
+    return train_images, train_labels, test_images, test_labels
 
 
-class MSELoss:
-    def __call__(self, predicted, target):
-        self.predicted = predicted
-        self.target = target
-        n = len(predicted)
-        self.loss = sum((p - t) ** 2 for p, t in zip(predicted, target)) / n
-        return self.loss
-
-    def backward(self):
-        n = len(self.predicted)
-        return [2 * (p - t) / n for p, t in zip(self.predicted, self.target)]
-
-
-class BCELoss:
-    def __call__(self, predicted, target):
-        self.predicted = predicted
-        self.target = target
-        eps = 1e-7
-        n = len(predicted)
-        self.loss = 0
-        for p, t in zip(predicted, target):
-            p = max(eps, min(1 - eps, p))
-            self.loss += -(t * math.log(p) + (1 - t) * math.log(1 - p))
-        self.loss /= n
-        return self.loss
-
-    def backward(self):
-        eps = 1e-7
-        n = len(self.predicted)
-        grads = []
-        for p, t in zip(self.predicted, self.target):
-            p = max(eps, min(1 - eps, p))
-            grads.append((-t / p + (1 - t) / (1 - p)) / n)
-        return grads
-
-
-class SGD:
-    def __init__(self, parameters, lr=0.01):
-        self.params = parameters
-        self.lr = lr
-
-    def step(self):
-        for container, i, j, grad_container in self.params:
-            if j is not None:
-                container[i][j] -= self.lr * grad_container[i][j]
-            else:
-                container[i] -= self.lr * grad_container[i]
-
-    def zero_grad(self):
-        for container, i, j, grad_container in self.params:
-            if j is not None:
-                grad_container[i][j] = 0.0
-            else:
-                grad_container[i] = 0.0
-
-
-class Adam:
-    def __init__(self, parameters, lr=0.001, beta1=0.9, beta2=0.999, eps=1e-8):
-        self.params = parameters
-        self.lr = lr
-        self.beta1 = beta1
-        self.beta2 = beta2
-        self.eps = eps
-        self.t = 0
-        self.m = [0.0] * len(parameters)
-        self.v = [0.0] * len(parameters)
-
-    def step(self):
-        self.t += 1
-        for idx, (container, i, j, grad_container) in enumerate(self.params):
-            if j is not None:
-                g = grad_container[i][j]
-            else:
-                g = grad_container[i]
-
-            self.m[idx] = self.beta1 * self.m[idx] + (1 - self.beta1) * g
-            self.v[idx] = self.beta2 * self.v[idx] + (1 - self.beta2) * g * g
-
-            m_hat = self.m[idx] / (1 - self.beta1 ** self.t)
-            v_hat = self.v[idx] / (1 - self.beta2 ** self.t)
-
-            update = self.lr * m_hat / (math.sqrt(v_hat) + self.eps)
-
-            if j is not None:
-                container[i][j] -= update
-            else:
-                container[i] -= update
-
-    def zero_grad(self):
-        for container, i, j, grad_container in self.params:
-            if j is not None:
-                grad_container[i][j] = 0.0
-            else:
-                grad_container[i] = 0.0
-
-
-class DataLoader:
-    def __init__(self, data, batch_size=32, shuffle=True):
-        self.data = data
-        self.batch_size = batch_size
-        self.shuffle = shuffle
-
-    def __iter__(self):
-        indices = list(range(len(self.data)))
-        if self.shuffle:
-            random.shuffle(indices)
-        for start in range(0, len(indices), self.batch_size):
-            batch_indices = indices[start:start + self.batch_size]
-            batch = [self.data[i] for i in batch_indices]
-            inputs = [item[0] for item in batch]
-            targets = [item[1] for item in batch]
-            yield inputs, targets
-
-    def __len__(self):
-        return (len(self.data) + self.batch_size - 1) // self.batch_size
-
-
-def make_circle_data(n=500, seed=42):
-    random.seed(seed)
-    data = []
-    for _ in range(n):
-        x = random.uniform(-2, 2)
-        y = random.uniform(-2, 2)
-        label = 1.0 if x * x + y * y < 1.5 else 0.0
-        data.append(([x, y], [label]))
-    return data
-
-
-def train_framework():
-    random.seed(42)
-
-    model = Sequential(
-        Linear(2, 16),
-        ReLU(),
-        Linear(16, 16),
-        ReLU(),
-        Linear(16, 8),
-        ReLU(),
-        Linear(8, 1),
-        Sigmoid(),
+def create_loaders(train_images, train_labels, test_images, test_labels, batch_size=64):
+    train_dataset = torch.utils.data.TensorDataset(train_images, train_labels)
+    test_dataset = torch.utils.data.TensorDataset(test_images, test_labels)
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True
     )
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset, batch_size=256, shuffle=False
+    )
+    return train_loader, test_loader
 
-    print(f"Model: 4 linear layers (2->16->16->8->1)")
-    print(f"Total parameters: {model.count_parameters()}")
-    print(f"Optimizer: Adam (lr=0.01)")
-    print(f"Loss: Binary Cross-Entropy")
-    print(f"Data: 500 samples (80/20 train/test split)")
+
+def run_experiment(name, model, train_loader, test_loader, optimizer, device, epochs=10):
+    print(f"\n{'='*60}")
+    print(f"  {name}")
+    print(f"{'='*60}")
+
+    num_params = sum(p.numel() for p in model.parameters())
+    print(f"  Parameters: {num_params:,}")
+    print(f"  Optimizer:  {optimizer.__class__.__name__}")
+    print(f"  Device:     {device}")
     print()
 
-    criterion = BCELoss()
-    optimizer = Adam(model.parameters(), lr=0.01)
+    criterion = nn.CrossEntropyLoss()
+    start_time = time.time()
 
-    data = make_circle_data(500)
-    split = int(len(data) * 0.8)
-    train_data = data[:split]
-    test_data = data[split:]
+    for epoch in range(epochs):
+        train_loss, train_acc = train_one_epoch(
+            model, train_loader, criterion, optimizer, device
+        )
+        test_loss, test_acc = evaluate(
+            model, test_loader, criterion, device
+        )
+        print(
+            f"  Epoch {epoch+1:2d} | "
+            f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.4f} | "
+            f"Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.4f}"
+        )
 
-    loader = DataLoader(train_data, batch_size=16, shuffle=True)
-
-    model.train()
-
-    for epoch in range(100):
-        total_loss = 0
-        total_correct = 0
-        total_samples = 0
-
-        for batch_inputs, batch_targets in loader:
-            for x, t in zip(batch_inputs, batch_targets):
-                pred = model.forward(x)
-                loss = criterion(pred, t)
-                total_loss += loss
-
-                optimizer.zero_grad()
-                grad = criterion.backward()
-                model.backward(grad)
-                optimizer.step()
-
-                predicted_class = 1.0 if pred[0] >= 0.5 else 0.0
-                if predicted_class == t[0]:
-                    total_correct += 1
-                total_samples += 1
-
-        avg_loss = total_loss / total_samples
-        accuracy = total_correct / total_samples * 100
-
-        if epoch % 10 == 0 or epoch == 99:
-            print(f"  Epoch {epoch:3d} | Loss: {avg_loss:.6f} | Train Accuracy: {accuracy:.1f}%")
-
-    model.eval()
-    correct = 0
-    for x, t in test_data:
-        pred = model.forward(x)
-        predicted_class = 1.0 if pred[0] >= 0.5 else 0.0
-        if predicted_class == t[0]:
-            correct += 1
-    test_accuracy = correct / len(test_data) * 100
-    print(f"\n  Test Accuracy: {test_accuracy:.1f}% ({correct}/{len(test_data)})")
-
-    return model, test_accuracy
+    elapsed = time.time() - start_time
+    print(f"\n  Time: {elapsed:.1f}s ({elapsed/epochs:.1f}s/epoch)")
+    print(f"  Final Test Accuracy: {test_acc:.4f}")
+    return test_acc
 
 
-def train_with_sgd():
-    random.seed(42)
-
-    model = Sequential(
-        Linear(2, 16),
-        ReLU(),
-        Linear(16, 16),
-        ReLU(),
-        Linear(16, 8),
-        ReLU(),
-        Linear(8, 1),
-        Sigmoid(),
+def experiment_adam(train_loader, test_loader, device):
+    model = MNISTModel().to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    return run_experiment(
+        "Experiment 1: Adam + Dropout",
+        model, train_loader, test_loader, optimizer, device
     )
 
-    criterion = BCELoss()
-    optimizer = SGD(model.parameters(), lr=0.1)
 
-    data = make_circle_data(500)
-    split = int(len(data) * 0.8)
-    train_data = data[:split]
-    test_data = data[split:]
-    loader = DataLoader(train_data, batch_size=16, shuffle=True)
-
-    model.train()
-
-    for epoch in range(100):
-        total_loss = 0
-        total_samples = 0
-
-        for batch_inputs, batch_targets in loader:
-            for x, t in zip(batch_inputs, batch_targets):
-                pred = model.forward(x)
-                loss = criterion(pred, t)
-                total_loss += loss
-
-                optimizer.zero_grad()
-                grad = criterion.backward()
-                model.backward(grad)
-                optimizer.step()
-                total_samples += 1
-
-    model.eval()
-    correct = 0
-    for x, t in test_data:
-        pred = model.forward(x)
-        predicted_class = 1.0 if pred[0] >= 0.5 else 0.0
-        if predicted_class == t[0]:
-            correct += 1
-    return correct / len(test_data) * 100
-
-
-def train_with_dropout():
-    random.seed(42)
-
-    model = Sequential(
-        Linear(2, 16),
-        ReLU(),
-        Dropout(0.3),
-        Linear(16, 16),
-        ReLU(),
-        Dropout(0.3),
-        Linear(16, 8),
-        ReLU(),
-        Linear(8, 1),
-        Sigmoid(),
+def experiment_sgd(train_loader, test_loader, device):
+    model = MNISTModel().to(device)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+    return run_experiment(
+        "Experiment 2: SGD + Momentum + Dropout",
+        model, train_loader, test_loader, optimizer, device
     )
 
-    criterion = BCELoss()
-    optimizer = Adam(model.parameters(), lr=0.01)
 
-    data = make_circle_data(500)
-    split = int(len(data) * 0.8)
-    train_data = data[:split]
-    test_data = data[split:]
-    loader = DataLoader(train_data, batch_size=16, shuffle=True)
-
-    model.train()
-
-    for epoch in range(100):
-        for batch_inputs, batch_targets in loader:
-            for x, t in zip(batch_inputs, batch_targets):
-                pred = model.forward(x)
-                criterion(pred, t)
-                optimizer.zero_grad()
-                grad = criterion.backward()
-                model.backward(grad)
-                optimizer.step()
-
-    model.eval()
-    correct = 0
-    for x, t in test_data:
-        pred = model.forward(x)
-        predicted_class = 1.0 if pred[0] >= 0.5 else 0.0
-        if predicted_class == t[0]:
-            correct += 1
-    return correct / len(test_data) * 100
+def experiment_batchnorm(train_loader, test_loader, device):
+    model = MNISTModelWithBatchNorm().to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    return run_experiment(
+        "Experiment 3: Adam + BatchNorm (no dropout)",
+        model, train_loader, test_loader, optimizer, device
+    )
 
 
-def sample_predictions(model, data):
-    test_points = [
-        ([0.0, 0.0], "inside"),
-        ([0.5, 0.5], "inside"),
-        ([1.0, 0.0], "inside"),
-        ([-0.3, 0.3], "inside"),
-        ([1.5, 1.5], "outside"),
-        ([0.0, 1.8], "outside"),
-        ([-1.5, -1.0], "outside"),
-        ([2.0, 0.0], "outside"),
-    ]
+def experiment_sgd_cosine(train_loader, test_loader, device, epochs=10):
+    model = MNISTModel().to(device)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.05, momentum=0.9)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
 
-    print("\n  Sample Predictions:")
-    for point, expected in test_points:
-        pred = model.forward(point)
-        predicted_region = "inside" if pred[0] >= 0.5 else "outside"
-        status = "OK" if predicted_region == expected else "WRONG"
-        print(f"    ({point[0]:5.1f}, {point[1]:5.1f}) -> {pred[0]:.4f} ({predicted_region:7s}, expected {expected:7s}) {status}")
+    print(f"\n{'='*60}")
+    print(f"  Experiment 4: SGD + Cosine LR Schedule")
+    print(f"{'='*60}")
+
+    num_params = sum(p.numel() for p in model.parameters())
+    print(f"  Parameters: {num_params:,}")
+    print(f"  Optimizer:  SGD (lr=0.05, momentum=0.9) + CosineAnnealing")
+    print(f"  Device:     {device}")
+    print()
+
+    criterion = nn.CrossEntropyLoss()
+    start_time = time.time()
+    test_acc = 0
+
+    for epoch in range(epochs):
+        train_loss, train_acc = train_one_epoch(
+            model, train_loader, criterion, optimizer, device
+        )
+        test_loss, test_acc = evaluate(
+            model, test_loader, criterion, device
+        )
+        current_lr = scheduler.get_last_lr()[0]
+        print(
+            f"  Epoch {epoch+1:2d} | "
+            f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.4f} | "
+            f"Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.4f} | "
+            f"LR: {current_lr:.6f}"
+        )
+        scheduler.step()
+
+    elapsed = time.time() - start_time
+    print(f"\n  Time: {elapsed:.1f}s ({elapsed/epochs:.1f}s/epoch)")
+    print(f"  Final Test Accuracy: {test_acc:.4f}")
+    return test_acc
+
+
+def show_model_info(model, name="Model"):
+    print(f"\n  {name} Architecture:")
+    print(f"  {'-'*40}")
+    total = 0
+    for pname, param in model.named_parameters():
+        print(f"    {pname:30s} {str(list(param.shape)):15s} ({param.numel():,} params)")
+        total += param.numel()
+    print(f"  {'-'*40}")
+    print(f"    Total: {total:,} parameters")
+
+
+def demo_tensor_basics():
+    print(f"\n{'='*60}")
+    print(f"  Tensor Basics")
+    print(f"{'='*60}")
+
+    x = torch.randn(3, 4)
+    print(f"\n  torch.randn(3, 4):")
+    print(f"    shape={x.shape}, dtype={x.dtype}, device={x.device}")
+
+    x_int = x.to(torch.int8)
+    print(f"\n  .to(torch.int8):")
+    print(f"    dtype={x_int.dtype}")
+
+    y = x.view(2, 6)
+    print(f"\n  .view(2, 6):")
+    print(f"    shape={y.shape}")
+
+    z = x.unsqueeze(0)
+    print(f"\n  .unsqueeze(0):")
+    print(f"    shape={z.shape}")
+
+
+def demo_autograd():
+    print(f"\n{'='*60}")
+    print(f"  Autograd Demo")
+    print(f"{'='*60}")
+
+    x = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)
+    y = x ** 2 + 3 * x
+    z = y.sum()
+    z.backward()
+
+    print(f"\n  x = [1.0, 2.0, 3.0]")
+    print(f"  y = x^2 + 3x")
+    print(f"  z = sum(y) = {z.item():.1f}")
+    print(f"  dz/dx = 2x + 3 = {x.grad.tolist()}")
+
+    w = torch.randn(3, requires_grad=True)
+    for step in range(3):
+        loss = (w ** 2).sum()
+        loss.backward()
+        print(f"\n  Step {step}: loss={loss.item():.4f}, grad={w.grad.tolist()}")
+        with torch.no_grad():
+            w -= 0.1 * w.grad
+        w.grad.zero_()
 
 
 if __name__ == "__main__":
-    print("=" * 70)
-    print("MINI FRAMEWORK -- Phase 3 Capstone")
-    print("=" * 70)
+    print("=" * 60)
+    print("  Introduction to PyTorch -- Phase 3, Lesson 11")
+    print("=" * 60)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"\n  PyTorch version: {torch.__version__}")
+    print(f"  Device: {device}")
+    print(f"  CUDA available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"  GPU: {torch.cuda.get_device_name(0)}")
+
+    demo_tensor_basics()
+    demo_autograd()
+
+    print(f"\n{'='*60}")
+    print(f"  Loading MNIST...")
+    print(f"{'='*60}")
+
+    train_images, train_labels, test_images, test_labels = load_data()
+    print(f"  Train: {train_images.shape[0]:,} images")
+    print(f"  Test:  {test_images.shape[0]:,} images")
+    print(f"  Image shape: {train_images.shape[1]} features (28x28 flattened)")
+    print(f"  Classes: {train_labels.unique().tolist()}")
+
+    train_loader, test_loader = create_loaders(
+        train_images, train_labels, test_images, test_labels
+    )
+
+    model_preview = MNISTModel()
+    show_model_info(model_preview, "MNISTModel (Dropout)")
+
+    model_preview_bn = MNISTModelWithBatchNorm()
+    show_model_info(model_preview_bn, "MNISTModel (BatchNorm)")
+
+    acc_adam = experiment_adam(train_loader, test_loader, device)
+    acc_sgd = experiment_sgd(train_loader, test_loader, device)
+    acc_bn = experiment_batchnorm(train_loader, test_loader, device)
+    acc_cosine = experiment_sgd_cosine(train_loader, test_loader, device)
+
+    print(f"\n{'='*60}")
+    print(f"  Summary")
+    print(f"{'='*60}")
+    print(f"  Adam + Dropout:           {acc_adam:.4f}")
+    print(f"  SGD + Momentum + Dropout: {acc_sgd:.4f}")
+    print(f"  Adam + BatchNorm:         {acc_bn:.4f}")
+    print(f"  SGD + Cosine Schedule:    {acc_cosine:.4f}")
     print()
 
-    print("-" * 70)
-    print("EXPERIMENT 1: Adam Optimizer (4-layer network)")
-    print("-" * 70)
-    model, adam_acc = train_framework()
-    sample_predictions(model, None)
+    best_model = MNISTModel().to(device)
+    optimizer = torch.optim.Adam(best_model.parameters(), lr=1e-3)
+    criterion = nn.CrossEntropyLoss()
+    for epoch in range(10):
+        train_one_epoch(best_model, train_loader, criterion, optimizer, device)
 
-    print("\n" + "-" * 70)
-    print("EXPERIMENT 2: SGD Optimizer (same architecture)")
-    print("-" * 70)
-    sgd_acc = train_with_sgd()
-    print(f"  SGD Test Accuracy: {sgd_acc:.1f}%")
+    torch.save(best_model.state_dict(), "mnist_mlp.pt")
+    print(f"  Model saved to mnist_mlp.pt")
 
-    print("\n" + "-" * 70)
-    print("EXPERIMENT 3: With Dropout (p=0.3)")
-    print("-" * 70)
-    dropout_acc = train_with_dropout()
-    print(f"  Dropout Test Accuracy: {dropout_acc:.1f}%")
-
-    print("\n" + "=" * 70)
-    print("COMPARISON")
-    print("=" * 70)
-    print(f"  Adam (no dropout):     {adam_acc:.1f}%")
-    print(f"  SGD (no dropout):      {sgd_acc:.1f}%")
-    print(f"  Adam + Dropout(0.3):   {dropout_acc:.1f}%")
-
-    print("\n" + "=" * 70)
-    print("FRAMEWORK COMPONENTS")
-    print("=" * 70)
-    print(f"  Modules:    Linear, ReLU, Sigmoid, Tanh, Dropout, BatchNorm")
-    print(f"  Containers: Sequential")
-    print(f"  Losses:     MSELoss, BCELoss")
-    print(f"  Optimizers: SGD, Adam")
-    print(f"  Data:       DataLoader (batching + shuffle)")
-    print(f"  Total:      ~500 lines of pure Python")
+    loaded_model = MNISTModel().to(device)
+    loaded_model.load_state_dict(
+        torch.load("mnist_mlp.pt", map_location=device, weights_only=True)
+    )
+    _, loaded_acc = evaluate(loaded_model, test_loader, criterion, device)
+    print(f"  Loaded model test accuracy: {loaded_acc:.4f}")
