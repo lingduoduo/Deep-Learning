@@ -89,22 +89,6 @@ df.to_csv('data.csv', index = False)
 dataset = LinearRegressionData("data.csv")
 dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 
-# Simple Linear Model
-class SimpleLinear:
-    def __init__(self, in_features: int, out_features: int):
-        self.w = torch.randn(out_features, in_features) * (1 / math.sqrt(in_features))
-        self.w.requires_grad_(True)
-        self.b = torch.zeros(out_features, requires_grad=True)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x @ self.w.T + self.b
-    
-model = SimpleLinear(8, 4)
-print("W shape:", model.w.shape)
-print("b shape:", model.b.shape)
-x = torch.randn(2, 8)
-print("Output shape:", model.forward(x).shape)
-
 
 # Simple Linear Regression Model
 class LinearRegressionModel(nn.Module):
@@ -137,3 +121,23 @@ X_test = torch.tensor([[4.0], [7.0]])
 with torch.no_grad():
     predictions = model(X_test)
     print(f"Predictions for {X_test.tolist()}: {predictions.tolist()}")
+
+
+# Simple Linear Layer
+class SimpleLinear:
+    def __init__(self, in_features: int, out_features: int):
+        self.w = torch.randn(in_features, out_features, requires_grad=True)
+        self.b = torch.zeros(out_features, requires_grad=True)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x @ self.w + self.b
+    
+    def __call__(self, x):
+        return self.forward(x)
+    
+model = SimpleLinear(8, 4)
+print("W shape:", model.w.shape)
+print("b shape:", model.b.shape)
+x = torch.randn(2, 8)
+y = model(x)
+print("Output shape:", y.shape)
