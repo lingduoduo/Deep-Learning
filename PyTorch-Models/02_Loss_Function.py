@@ -30,10 +30,7 @@ labels[:, 3:] = -100
 loss = sft_loss(logits, labels)
 print("SFT Loss:", loss.item())
 
-
-# 手写交叉熵 Loss
-# logits: [batch, vocab]
-# targets: [batch] 类别索引
+## Softmax Probabilities
 def softmax(logits, dim=-1):
     shifted_logits = logits - logits.amax(dim=dim, keepdim=True)
     exp_logits = shifted_logits.exp()
@@ -43,6 +40,10 @@ logits = torch.tensor([[2.0, 1.0, 0.1], [0.5, 2.5, 0.2]])
 probs = softmax(logits)
 print(f"Softmax Probabilities:\n{probs}")
 
+
+# 手写交叉熵 Loss
+# logits: [batch, vocab]
+# targets: [batch] 类别索引
 def cross_entropy_loss(logits, targets):
     if logits.dim() != 2:
         raise ValueError(f"Expected logits with shape [batch, vocab], got {tuple(logits.shape)}")
@@ -64,8 +65,6 @@ print(f"Cross Entropy Loss:{loss.item():.6f}")
 
 
 # HuberLoss
-X = torch.rand(100, 1) * 10
-y = 2 * X + 3 + torch.rand(100, 1)
 class HuberLoss(nn.Module):
     def __init__(self, delta):
         super(HuberLoss, self).__init__()
@@ -80,12 +79,13 @@ class HuberLoss(nn.Module):
         loss = 0.5 * quadratic**2 + self.delta * linear
         return loss.mean()
 
+X = torch.rand(100, 1) * 10
+y = 2 * X + 3 + torch.rand(100, 1)
+pred = y + torch.randn_like(y) * 0.5
+criterion = HuberLoss(delta=1.0)
+loss = criterion(pred, y)
+print(f"Huber Loss:{loss.item():.6f}")
 
-# Contrastive Loss
-# Implement CLIP Style contrastive loss, given a batch of images and texts 
-# loss_i = cross_entropy(similarity_matrix, labels) 
-# loss_t = cross_entropy(similarity_matrix.T, labels) 
-# loss = (loss_i + loss_t) / 2
 
 class CLIPContrastiveLoss(nn.Module):
     def __init__(self, temperature: float = 0.07):
@@ -129,3 +129,4 @@ text_embeds = torch.randn(4, 512)
 criterion = CLIPContrastiveLoss(temperature=0.07)
 loss = criterion(image_embeds, text_embeds)
 print(loss)
+

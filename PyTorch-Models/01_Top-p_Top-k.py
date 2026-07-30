@@ -21,7 +21,7 @@ print(top_k_filtering(logits, 2))
 # output: [2.0, 1.0, -inf, -inf]
 
 
-def top_k_filtering(logits, top_k):
+def top_k_filtering_torch(logits, top_k):
     # find top-k values
     topk_vals, _ = torch.topk(logits, top_k)
     # smallest value inside top-k
@@ -33,11 +33,10 @@ def top_k_filtering(logits, top_k):
         torch.tensor(float('-inf'))
     )
     return filtered
-
-
 logits = torch.tensor([[2.0, 1.0, 0.5, 0.1]])
-print(top_k_filtering(logits, 2))
+print(top_k_filtering_torch(logits, 2))
 # output: tensor([[2., 1., -inf, -inf]])
+
 
 # Top-p (Nucleus) 采样：
 # 做法：将词按概率从大到小排序，依次累加概率，直到累加和超过 p (比如 0.9)。保留这些词，剩下的截断，重新归一化，再采样。
@@ -50,7 +49,6 @@ def sortmax(x, axis=-1):
     return exp_x / np.sum(exp_x, axis=axis, keepdims=True)
 
 def top_p_filtering(logits, top_p=0.9, temperature=1.0, filter_value=-float("inf"), min_tokens_to_keep=1):
-
     logits = logits / temperature
     squeeze = False
     if logits.ndim == 1:
@@ -78,7 +76,8 @@ logits = np.array([2.0, 1.0, 0.1, 0.1, 0.1])
 filtered_logits = top_p_filtering(logits, top_p=0.8, temperature=1.0)
 print(filtered_logits)
 
-def top_p_filtering(logits, top_p=0.9, temperature=1.0, filter_value=-float("inf"), min_tokens_to_keep=1):
+
+def top_p_filtering_torch(logits, top_p=0.9, temperature=1.0, filter_value=-float("inf"), min_tokens_to_keep=1):
     logits = logits / temperature
 
     if logits.ndim == 1:
@@ -103,6 +102,5 @@ def top_p_filtering(logits, top_p=0.9, temperature=1.0, filter_value=-float("inf
     return logits[0] if squeeze else logits
 
 logits = torch.tensor([[2.0, 1.0, 0.1, 0.1, 0.1]]) 
-filtered_logits = top_p_filtering(logits, top_p=0.8, temperature=1.0)
+filtered_logits = top_p_filtering_torch(logits, top_p=0.8, temperature=1.0)
 print(filtered_logits)
-    

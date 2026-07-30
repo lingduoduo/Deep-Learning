@@ -16,13 +16,13 @@ print("Output:", relu(x))
 print("Shape: ", relu(x).shape)
 
 
-def my_softmax(x: torch.Tensor, dim: int = -1) -> torch.Tensor:
+def softmax(x: torch.Tensor, dim: int = -1) -> torch.Tensor:
     x_max = x.max(dim=dim, keepdim=True).values
     exp_x = torch.exp(x - x_max)
     return exp_x / exp_x.sum(dim=dim, keepdim=True)
 x = torch.tensor([1.0, 2.0, 3.0])
-print("Output:", my_softmax(x, dim=-1))
-print("Sum:   ", my_softmax(x, dim=-1).sum())  # should be ~1.0
+print("Output:", softmax(x, dim=-1))
+print("Sum:   ", softmax(x, dim=-1).sum())  # should be ~1.0
 print("Ref:   ", torch.softmax(x, dim=-1))
 
 
