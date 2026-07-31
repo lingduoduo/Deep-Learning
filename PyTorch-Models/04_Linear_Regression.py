@@ -124,16 +124,19 @@ with torch.no_grad():
 
 
 # Simple Linear Layer
-class SimpleLinear:
+class SimpleLinear(nn.Module):
     def __init__(self, in_features: int, out_features: int):
-        self.w = torch.randn(in_features, out_features, requires_grad=True)
-        self.b = torch.zeros(out_features, requires_grad=True)
+        super().__init__()
+
+        self.w = nn.Parameter(
+            torch.randn(in_features, out_features)
+        )
+        self.b = nn.Parameter(
+            torch.zeros(out_features)
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x @ self.w + self.b
-    
-    def __call__(self, x):
-        return self.forward(x)
     
 model = SimpleLinear(8, 4)
 print("W shape:", model.w.shape)
@@ -141,3 +144,115 @@ print("b shape:", model.b.shape)
 x = torch.randn(2, 8)
 y = model(x)
 print("Output shape:", y.shape)
+
+class MultipleLinearRegressionData(Dataset):
+    def __init__(self, file):
+        df = pd.read_csv(file)
+
+        # x1, x2, x3
+        self.X = torch.tensor(
+            df.iloc[:, :-1].values,
+            dtype=torch.float32
+        )
+
+        # y
+        self.y = torch.tensor(
+            df.iloc[:, -1].values,
+            dtype=torch.float32
+        ).view(-1, 1)
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
+
+dataset = MultipleLinearRegressionData("data2.csv")
+dataloader = DataLoader(
+    dataset,
+    batch_size=32,
+    shuffle=True
+)
+
+class MultipleLinearRegression(nn.Module):
+    def __init__(self, in_features, out_features):
+        super().__init__()
+
+        self.w = nn.Parameter(
+            torch.randn(in_features, out_features)
+        )
+
+        self.b = nn.Parameter(
+            torch.zeros(out_features)
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x @ self.w + self.b
+
+torch.manual_seed(42)
+X = torch.rand(100, 3) * 10
+# y = 2*x1 + 3*x2 - x3 + 4 + noise
+noise = torch.randn(100, 1) * 0.5
+y = (
+    2.0 * X[:, 0:1]
+    + 3.0 * X[:, 1:2]
+    - 1.0 * X[:, 2:3]
+    + 4.0
+    + noise
+)
+print("X shape:", X.shape)  # (100, 3)
+print("y shape:", y.shape)  # (100, 1)
+
+data = torch.cat((X, y), dim=1)
+df = pd.DataFrame(
+    data.numpy(),
+    columns=["x1", "x2", "x3", "y"]
+)
+df.to_csv("data2.csv", index=False)
+
+dataset = MultipleLinearRegressionData("data2.csv")
+
+dataloader = DataLoader(
+    dataset,
+    batch_size=32,
+    shuffle=True
+)
+
+model = MultipleLinearRegression(
+    in_features=3,
+    out_features=1
+)
+
+criterion = nn.MSELoss()
+
+optimizer = torch.optim.SGD(
+    model.parameters(),
+    lr=0.001
+)
+
+epochs = 1000
+
+for epoch in range(epochs):
+    total_loss = 0.0
+
+    for batch_X, batch_y in dataloader:
+        optimizer.zero_grad()
+
+        predictions = model(batch_X)
+        loss = criterion(predictions, batch_y)
+
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item() * batch_X.size(0)
+
+    average_loss = total_loss / len(dataset)
+
+    if (epoch + 1) % 100 == 0:
+        print(
+            f"Epoch [{epoch + 1}/{epochs}], "
+            f"Loss: {average_loss:.4f}"
+        )
+
+print("Learned weights:", model.w.detach().squeeze())
+print("Learned bias:", model.b.detach())
