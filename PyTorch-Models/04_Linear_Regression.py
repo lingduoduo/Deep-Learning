@@ -123,11 +123,11 @@ with torch.no_grad():
     print(f"Predictions for {X_test.tolist()}: {predictions.tolist()}")
 
 
-# Simple Linear Layer
-class SimpleLinear(nn.Module):
+# Linear Regression
+class LinearRegression(nn.Module):
     def __init__(self, in_features: int, out_features: int):
         super().__init__()
-
+        # a trainable model parameter
         self.w = nn.Parameter(
             torch.randn(in_features, out_features)
         )
@@ -137,13 +137,57 @@ class SimpleLinear(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x @ self.w + self.b
-    
-model = SimpleLinear(8, 4)
-print("W shape:", model.w.shape)
-print("b shape:", model.b.shape)
-x = torch.randn(2, 8)
-y = model(x)
-print("Output shape:", y.shape)
+# Create synthetic data
+n = 200
+in_features = 4
+out_features = 2
+X = torch.randn(n, in_features)
+true_w = torch.tensor([
+    [2.0, -1.0],
+    [0.5,  3.0],
+    [-2.0, 1.5],
+    [1.0,  0.5]
+])
+true_b = torch.tensor([0.5, -1.0])
+y = X @ true_w + true_b
+# Create model
+model = LinearRegression(
+    in_features=in_features,
+    out_features=out_features
+)
+# Loss + optimizer
+loss_fn = nn.MSELoss()
+optimizer = torch.optim.SGD(
+    model.parameters(),
+    lr=0.05
+)
+# Training loop
+for step in range(1000):
+    # 1. Clear old gradients
+    optimizer.zero_grad()
+    # 2. Forward pass
+    pred = model(X)
+    # 3. Calculate loss
+    loss = loss_fn(pred, y)
+    # 4. Calculate gradients
+    loss.backward()
+    # 5. Update parameters
+    optimizer.step()
+    if step % 100 == 0:
+        print(
+            f"Step {step:4d} | "
+            f"Loss: {loss.item():.6f}"
+        )
+# Check learned parameters
+print("\nTrue W:")
+print(true_w)
+print("\nLearned W:")
+print(model.w.detach())
+print("\nTrue b:")
+print(true_b)
+print("\nLearned b:")
+print(model.b.detach())
+
 
 class MultipleLinearRegressionData(Dataset):
     def __init__(self, file):
@@ -167,28 +211,6 @@ class MultipleLinearRegressionData(Dataset):
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
 
-dataset = MultipleLinearRegressionData("data2.csv")
-dataloader = DataLoader(
-    dataset,
-    batch_size=32,
-    shuffle=True
-)
-
-class MultipleLinearRegression(nn.Module):
-    def __init__(self, in_features, out_features):
-        super().__init__()
-
-        self.w = nn.Parameter(
-            torch.randn(in_features, out_features)
-        )
-
-        self.b = nn.Parameter(
-            torch.zeros(out_features)
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x @ self.w + self.b
-
 torch.manual_seed(42)
 X = torch.rand(100, 3) * 10
 # y = 2*x1 + 3*x2 - x3 + 4 + noise
@@ -210,15 +232,14 @@ df = pd.DataFrame(
 )
 df.to_csv("data2.csv", index=False)
 
-dataset = MultipleLinearRegressionData("data2.csv")
 
+dataset = MultipleLinearRegressionData("data2.csv")
 dataloader = DataLoader(
     dataset,
     batch_size=32,
     shuffle=True
 )
-
-model = MultipleLinearRegression(
+model = LinearRegression(
     in_features=3,
     out_features=1
 )

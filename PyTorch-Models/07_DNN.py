@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 
+
 class DNN(nn.Module):
     def __init__(self, input_dim=2, hidden_dim=10, output_dim=1):
         super().__init__()

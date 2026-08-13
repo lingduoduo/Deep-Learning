@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import math
-
+from typing import Iterable
 
 def relu(x: torch.Tensor) -> torch.Tensor:
     return torch.where(
@@ -56,9 +56,9 @@ print('Eval: ', d(x))
 
 
 class MyEmbedding(nn.Module):
-    def __init__(self, num_embeddings, embedding_dim):
+    def __init__(self, num, dim):
         super().__init__()
-        self.weight = nn.Parameter(torch.randn(num_embeddings, embedding_dim))
+        self.weight = nn.Parameter(torch.randn(num, dim))
 
     def forward(self, indices):
         return self.weight[indices]
@@ -69,44 +69,58 @@ print('Matches manual:', torch.equal(emb(idx)[0], emb.weight[0]))
 
 
 # GELU (Gaussian Error Linear Unit) activation
-def my_gelu(x):
+def my_gelu(x: torch.Tensor):
     return 0.5 * x * ( 1 + torch.erf(x / math.sqrt(2.0)))
 x = torch.tensor([-2., -1., 0., 1., 2.])
 print('Output:', my_gelu(x))
 print('Ref:   ', torch.nn.functional.gelu(x))
 
 
-# Kaiming Initialization
-def kaiming_init(weight):
-    fan_in = weight.shape[1] if weight.dim() < 2 else weight.shape[0]
+# Kaiming/He Initialization
+def kaiming_init(weight: torch.Tensor): # weight.shape = [output neurons, input neurons]
+    if weight.dim() < 2:
+        raise ValueError("Kaiming initialization requires at least 2 dimensions")
+    fan_in = weight.shape[1]
     std = math.sqrt(2/fan_in)
     with torch.no_grad():
-        weight.normal_(0, std)
+        weight.normal_(0, std) # tensor is modified in-place.
     return weight
-w = torch.empty(256, 512)
+w = torch.empty(256, 512) # Tensor with uninitialized memory
 kaiming_init(w)
 print(f'Mean: {w.mean():.4f} (expect ~0)')
 print(f'Std:  {w.std():.4f} (expect {math.sqrt(2/512):.4f})')
 
 
 # Gradient Norm Clipping
-def clip_grad_norm(parameters, max_norm):
+def clip_grad_norm(    
+        parameters: Iterable[torch.Tensor],
+        max_norm: float):
+    
     parameters = [p for p in parameters if p.grad is not None]
-    total_norm = torch.sqrt(sum(p.grad.norm() ** 2 for p in parameters))
+    if not parameters:
+        return 0.0
+
+    total_norm = torch.stack([
+        p.grad.norm() ** 2
+        for p in parameters
+    ]).sum()
+
+    total_norm = torch.sqrt(total_norm)
     clip_coef = max_norm / (total_norm + 1e-6)
     if clip_coef < 1:
         for p in parameters:
             p.grad.mul_(clip_coef)
-    return total_norm.item()
+    return total_norm.item() # Python float
 p = torch.randn(100, requires_grad=True)
-(p * 10).sum().backward()
+# Define a very simple loss
+(p * 10).sum().backward() 
 print('Before:', p.grad.norm().item())
 orig = clip_grad_norm([p], max_norm=1.0)
 print('After: ', p.grad.norm().item())
 print('Original norm:', orig)
 
 
-Gradient Accumulation
+# Gradient Accumulation
 def accumulated_step(model, optimizer, loss_fn, micro_batches):
     optimizer.zero_grad()
     total_loss = 0.0
