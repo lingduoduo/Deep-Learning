@@ -6,7 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 import math
 
-class LinearRegression:
+class MyLinearRegression:
     # Method 1 — Closed-Form (Normal Equation)
     def closed_form(self, X: torch.Tensor, y: torch.Tensor):
         n, d = X.shape
@@ -58,7 +58,7 @@ torch.manual_seed(42)
 X = torch.randn(100, 3)
 true_w = torch.tensor([2.0, -1.0, 0.5])
 y = X @ true_w + 3.0
-model = LinearRegression()
+model = MyLinearRegression()
 for name, method in [("Closed-form", model.closed_form),
                       ("Grad Descent", lambda X, y: model.gradient_descent(X, y, lr=0.05, steps=2000)),
                       ("nn.Linear", lambda X, y: model.nn_linear(X, y, lr=0.05, steps=2000))]:
@@ -90,38 +90,21 @@ dataset = LinearRegressionData("data.csv")
 dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 
 
-# Simple Linear Regression Model
-class LinearRegressionModel(nn.Module):
-    def __init__(self):
-        super(LinearRegressionModel, self).__init__()
-        self.linear = nn.Linear(1, 1)
-    
-    def forward(self, x):
-        return self.linear(x)
+# Linear Layer
+class SimpleLinear:
+    def __init__(self, in_features: int, out_features: int):
+        self.weight = torch.randn(out_features, in_features) * (1 / math.sqrt(in_features))
+        self.weight.requires_grad_(True)
+        self.bias = torch.zeros(out_features, requires_grad=True)
 
-model = LinearRegressionModel()
-criterion = nn.MSELoss()
-optimizer = optim.SGD(model.parameters(), lr=0.001)
-epochs = 1000
-for epoch in range(epochs):
-    for batch_X, batch_y in dataloader:
-        optimizer.zero_grad()
-        prediction = model(batch_X)
-        loss = criterion(prediction, batch_y)
-        loss.backward()
-        optimizer.step()
-    
-    if (epoch + 1) % 100 == 0:
-        print(f"Epoch [{epoch + 1}/{epochs}], Loss: {loss.item():.4f}")
-
-[w, b] = model.linear.parameters()
-print(f"Learned weight: {w.item():.4f}, Learned bias: {b.item():.4f}")
-
-X_test = torch.tensor([[4.0], [7.0]])
-with torch.no_grad():
-    predictions = model(X_test)
-    print(f"Predictions for {X_test.tolist()}: {predictions.tolist()}")
-
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x @ self.weight.T + self.bias
+layer = SimpleLinear(8, 4)
+print("W shape:", layer.weight.shape)
+print("b shape:", layer.bias.shape)
+x = torch.randn(2, 8)
+print("Output shape:", layer.forward(x).shape)
+     
 
 # Linear Regression
 class LinearRegression(nn.Module):
