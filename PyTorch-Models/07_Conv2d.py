@@ -30,11 +30,8 @@ class Conv2d(nn.Module):
 
         patches = x.unfold(2, kH, self.stride).unfold(3, kW, self.stride)
         # patches: (B, C_in, H_out, W_out, kH, kW)
-
         out = torch.einsum("bihwjk,oijk->bohw", patches, self.weight)
-
         out = out + self.bias.view(1, -1, 1, 1)
-
         return out
 
 x = torch.randn(1, 3, 8, 8)
