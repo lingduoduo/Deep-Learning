@@ -29,7 +29,7 @@ print("Output shape:", out.shape)
 
 
 # Multi-Head Attention - only for cross-attention, where K and V come from the same source.
-class MultiHeadCrossAttention(nn.Module):
+class MultiHeadAttention(nn.Module):
     def __init__(self, num_inputs, num_heads):
         super().__init__()
 
@@ -43,25 +43,30 @@ class MultiHeadCrossAttention(nn.Module):
         self.W_v = nn.Linear(num_inputs, num_inputs)
         self.W_o = nn.Linear(num_inputs, num_inputs)
 
-    def forward(self, x_q, x_kv):
+    def forward(self, x_q, x_k, x_v):
         B, S_q, _ = x_q.shape
-        B, S_kv, _ = x_kv.shape
+        S_k = x_k.shape[1]
+        S_v = x_v.shape[1]
+        assert S_k == S_v
 
         q = self.W_q(x_q).view(
             B, S_q, self.num_heads, self.d_k
         ).transpose(1, 2)
-        k = self.W_k(x_kv).view(
-            B, S_kv, self.num_heads, self.d_k
+        k = self.W_k(x_k).view(
+            B, S_k, self.num_heads, self.d_k
         ).transpose(1, 2)
-        v = self.W_v(x_kv).view(
-            B, S_kv, self.num_heads, self.d_k
+        v = self.W_v(x_v).view(
+            B, S_v, self.num_heads, self.d_k
         ).transpose(1, 2)
 
+        # Scaled dot-product attention
         scores = torch.matmul(
             q, k.transpose(-2, -1)
         ) / math.sqrt(self.d_k)
+
         weights = torch.softmax(scores, dim=-1)
         attn = torch.matmul(weights, v)
+        # Merge heads
         out = (
             attn
             .transpose(1, 2)
@@ -69,43 +74,141 @@ class MultiHeadCrossAttention(nn.Module):
             .view(B, S_q, -1)
         )
         return self.W_o(out)
-
-attn = MultiHeadCrossAttention(64, 4)
-# self-attention
-x = torch.randn(2, 8, 64)
-out1 = attn(x, x, x)
-print(out1.shape)
-# cross-attention
-x_q = torch.randn(2, 6, 64)
-x_kv = torch.randn(2, 10, 64)
-out2 = attn(x_q, x_kv, x_kv)
+    
+attn = MultiHeadAttention(64, 4) # cross-attention 
+x_q = torch.randn(2, 6, 64) 
+x_kv = torch.randn(2, 10, 64) 
+out2 = attn(x_q, x_kv) 
 print(out2.shape)
 
 
-# Causal Self-Attention
-class CausalAttention(nn.Module):
-    def __init__(self):
+# Self-Attention
+class SelfAttention(nn.Module):
+    def __init__(self, num_inputs, num_heads):
         super().__init__()
-    
-    def forward(self, Q, K, V):
-        batch_size, seq_len, hidden_dim = Q.shape
 
-        scores = Q @ K.transpose(-2, -1) / math.sqrt(hidden_dim)
-        mask = torch.triu(torch.ones(seq_len, seq_len, device=scores.device, dtype=torch.bool), diagonal=1)
-        scores = scores.masked_fill(mask.unsqueeze(0), float("-inf"))
+        assert num_inputs % num_heads == 0
+
+        self.num_heads = num_heads
+        self.d_k = num_inputs // num_heads
+
+        self.W_q = nn.Linear(num_inputs, num_inputs)
+        self.W_k = nn.Linear(num_inputs, num_inputs)
+        self.W_v = nn.Linear(num_inputs, num_inputs)
+        self.W_o = nn.Linear(num_inputs, num_inputs)
+
+    def forward(self, x):
+        B, S, _ = x.shape
+
+        # Q, K, V all come from the same x
+        q = self.W_q(x).view(
+            B, S, self.num_heads, self.d_k
+        ).transpose(1, 2)
+        k = self.W_k(x).view(
+            B, S, self.num_heads, self.d_k
+        ).transpose(1, 2)
+        v = self.W_v(x).view(
+            B, S, self.num_heads, self.d_k
+        ).transpose(1, 2)
+
+        # Scaled dot-product attention
+        scores = torch.matmul(
+            q, k.transpose(-2, -1)
+        ) / math.sqrt(self.d_k)
+
         weights = torch.softmax(scores, dim=-1)
-        output = weights @ V
-        return output
+        attn = torch.matmul(weights, v)
+        # Merge heads
+        out = (
+            attn
+            .transpose(1, 2)
+            .contiguous()
+            .view(B, S, -1)
+        )
+        return self.W_o(out)
 
-torch.manual_seed(0)
-Q = torch.randn(1, 4, 8)
-K = torch.randn(1, 4, 8)
-V = torch.randn(1, 4, 8)
-causal_attention = CausalAttention()
-out = causal_attention(Q, K, V)
+x = torch.randn(1, 4, 8)
+self_attention = SelfAttention(
+    num_inputs=8,
+    num_heads=2
+)
+out = self_attention(x)
 print(out.shape)
-print("Pos 0 == V[0]?", torch.allclose(out[:, 0], V[:, 0], atol=1e-5))
+# torch.Size([1, 4, 8])
 
+
+# Multi-Head Causal Self-Attention with an upper-triangular mask.
+class CausalSelfAttention(nn.Module):
+    def __init__(self, d_model, num_heads):
+        super().__init__()
+
+        assert d_model % num_heads == 0
+
+        self.num_heads = num_heads
+        self.d_k = d_model // num_heads
+
+        self.W_q = nn.Linear(d_model, d_model)
+        self.W_k = nn.Linear(d_model, d_model)
+        self.W_v = nn.Linear(d_model, d_model)
+        self.W_o = nn.Linear(d_model, d_model)
+
+    def forward(self, x):
+        B, S, _ = x.shape
+
+        # Self-attention: Q, K, V all come from x
+        q = self.W_q(x).view(
+            B, S, self.num_heads, self.d_k
+        ).transpose(1, 2)
+        k = self.W_k(x).view(
+            B, S, self.num_heads, self.d_k
+        ).transpose(1, 2)
+        v = self.W_v(x).view(
+            B, S, self.num_heads, self.d_k
+        ).transpose(1, 2)
+        # q, k, v: (B, num_heads, S, d_k)
+
+        # Scaled dot-product attention
+        scores = torch.matmul(
+            q, k.transpose(-2, -1)
+        ) / math.sqrt(self.d_k)
+        # scores: (B, num_heads, S, S)
+
+        # Causal mask: prevent token i from attending to future tokens j > i
+        mask = torch.triu(
+            torch.ones(
+                S, S,
+                device=x.device,
+                dtype=torch.bool
+            ),
+            diagonal=1
+        )
+        scores = scores.masked_fill(
+            mask.unsqueeze(0).unsqueeze(0),
+            float("-inf")
+        )
+        # Attention weights
+        weights = torch.softmax(scores, dim=-1)
+        # Weighted sum of values
+        attn = torch.matmul(weights, v)
+        # attn:(B, num_heads, S, d_k)
+        # Merge heads
+        out = (
+            attn
+            .transpose(1, 2)
+            .contiguous()
+            .view(B, S, -1)
+        )
+        return self.W_o(out)
+
+
+x = torch.randn(1, 4, 8)
+causal_attention = CausalSelfAttention(
+    d_model=8,
+    num_heads=2
+)
+out = causal_attention(x)
+print("Output shape:", out.shape)
+# torch.Size([1, 4, 8])
 
 # GroupQueryAttention
 class GroupQueryAttention(nn.Module):
@@ -367,18 +470,14 @@ class KVCacheAttention(nn.Module):
         )
 
         weights = torch.softmax(scores, dim=-1)
-
         attn = torch.matmul(weights, v_all)
         # attn: (B, H, S_new, d_k)
-
         out = attn.transpose(1, 2).contiguous().view(
             batch_size,
             seq_len,
             self.d_model
         )
-
         out = self.W_o(out)
-
         return out, new_cache
 
 # Demo: full forward vs incremental decode
@@ -436,22 +535,15 @@ class FlashAttention(nn.Module):
             for j in range(0, seq_len, block_size):
                 kj = K[:, j:j + block_size]
                 vj = V[:, j:j + block_size]
-
                 scores = torch.bmm(qi, kj.transpose(1, 2)) / math.sqrt(hidden_dim)
-
                 block_max = scores.max(dim=-1, keepdim=True).values
                 new_max = torch.maximum(row_max, block_max)
-
                 correction = torch.exp(row_max - new_max)
                 exp_scores = torch.exp(scores - new_max)
-
                 acc = acc * correction + torch.bmm(exp_scores, vj)
                 row_sum = row_sum * correction + exp_scores.sum(dim=-1, keepdim=True)
-
                 row_max = new_max
-
             output[:, i:i + block_size] = acc / row_sum
-
         return output
 
 torch.manual_seed(0)
@@ -464,5 +556,4 @@ print(out.shape)
 scores = torch.bmm(Q, K.transpose(1, 2)) / math.sqrt(8)
 ref = torch.bmm(torch.softmax(scores, dim=-1), V)
 print("Match:", torch.allclose(out, ref, atol=1e-4))
-
 
