@@ -76,10 +76,10 @@ class MultiHeadAttention(nn.Module):
         return self.W_o(out)
     
 attn = MultiHeadAttention(64, 4) # cross-attention 
-x_q = torch.randn(2, 6, 64) 
-x_kv = torch.randn(2, 10, 64) 
-out2 = attn(x_q, x_kv) 
-print(out2.shape)
+x_q = torch.randn(2, 6, 64)
+x_kv = torch.randn(2, 10, 64)
+out = attn(x_q, x_kv, x_kv)
+print(out.shape)
 
 
 # Self-Attention
@@ -139,18 +139,18 @@ print(out.shape)
 
 # Multi-Head Causal Self-Attention with an upper-triangular mask.
 class CausalSelfAttention(nn.Module):
-    def __init__(self, d_model, num_heads):
+    def __init__(self, num_inputs, num_heads):
         super().__init__()
 
-        assert d_model % num_heads == 0
+        assert num_inputs % num_heads == 0
 
         self.num_heads = num_heads
-        self.d_k = d_model // num_heads
+        self.d_k = num_inputs // num_heads
 
-        self.W_q = nn.Linear(d_model, d_model)
-        self.W_k = nn.Linear(d_model, d_model)
-        self.W_v = nn.Linear(d_model, d_model)
-        self.W_o = nn.Linear(d_model, d_model)
+        self.W_q = nn.Linear(num_inputs, num_inputs)
+        self.W_k = nn.Linear(num_inputs, num_inputs)
+        self.W_v = nn.Linear(num_inputs, num_inputs)
+        self.W_o = nn.Linear(num_inputs, num_inputs)
 
     def forward(self, x):
         B, S, _ = x.shape
@@ -203,7 +203,7 @@ class CausalSelfAttention(nn.Module):
 
 x = torch.randn(1, 4, 8)
 causal_attention = CausalSelfAttention(
-    d_model=8,
+    num_inputs=8,
     num_heads=2
 )
 out = causal_attention(x)
@@ -212,21 +212,21 @@ print("Output shape:", out.shape)
 
 # GroupQueryAttention
 class GroupQueryAttention(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, num_kv_heads: int):
+    def __init__(self, num_inputs: int, num_heads: int, num_kv_heads: int):
         super().__init__()
 
-        assert d_model % num_heads == 0
+        assert num_inputs % num_heads == 0
         assert num_heads % num_kv_heads == 0
 
-        self.d_model = d_model
+        self.num_inputs = num_inputs
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
-        self.d_k = d_model // num_heads
+        self.d_k = num_inputs // num_heads
 
-        self.W_q = nn.Linear(d_model, num_heads * self.d_k)
-        self.W_k = nn.Linear(d_model, num_kv_heads * self.d_k)
-        self.W_v = nn.Linear(d_model, num_kv_heads * self.d_k)
-        self.W_o = nn.Linear(d_model, d_model)
+        self.W_q = nn.Linear(num_inputs, num_heads * self.d_k)
+        self.W_k = nn.Linear(num_inputs, num_kv_heads * self.d_k)
+        self.W_v = nn.Linear(num_inputs, num_kv_heads * self.d_k)
+        self.W_o = nn.Linear(num_inputs, num_inputs)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         batch_size, seq_len, hidden_dim = x.shape
@@ -254,12 +254,12 @@ class GroupQueryAttention(nn.Module):
         weights = torch.softmax(scores, dim=-1)
         attn = torch.matmul(weights, v)
         out = attn.transpose(1, 2).contiguous().view(
-            batch_size, seq_len, self.d_model
+            batch_size, seq_len, self.num_inputs
         )
         return self.W_o(out)
     
 torch.manual_seed(0)
-gqa = GroupQueryAttention(d_model=32, num_heads=8, num_kv_heads=2)
+gqa = GroupQueryAttention(num_inputs=32, num_heads=8, num_kv_heads=2)
 print("W_q shape:", gqa.W_q.weight.shape)  # (32, 32)
 print("W_k shape:", gqa.W_k.weight.shape)  # (8, 32)  — only 2 KV heads * d_k=4
 
@@ -271,23 +271,23 @@ print("Output shape:", out.shape)           # (2, 6, 32)
 # SlidingWindowAttention
 class SlidingWindowAttention(nn.Module):
 
-    def __init__(self, d_model: int, num_heads: int, window_size: int):
+    def __init__(self, num_inputs: int, num_heads: int, window_size: int):
         super().__init__()
 
-        assert d_model % num_heads == 0
+        assert num_inputs % num_heads == 0
 
-        self.d_model = d_model
+        self.num_inputs = num_inputs
         self.num_heads = num_heads
         self.window_size = window_size
-        self.d_k = d_model // num_heads
+        self.d_k = num_inputs // num_heads
 
-        self.W_q = nn.Linear(d_model, d_model)
-        self.W_k = nn.Linear(d_model, d_model)
-        self.W_v = nn.Linear(d_model, d_model)
-        self.W_o = nn.Linear(d_model, d_model)
+        self.W_q = nn.Linear(num_inputs, num_inputs)
+        self.W_k = nn.Linear(num_inputs, num_inputs)
+        self.W_v = nn.Linear(num_inputs, num_inputs)
+        self.W_o = nn.Linear(num_inputs, num_inputs)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        batch_size, seq_len, hidden_dim = x.shape
+        batch_size, seq_len, _ = x.shape
 
         q = self.W_q(x).view(
             batch_size, seq_len, self.num_heads, self.d_k
@@ -315,96 +315,35 @@ class SlidingWindowAttention(nn.Module):
         weights = torch.softmax(scores, dim=-1)
         attn = torch.matmul(weights, v)
         out = attn.transpose(1, 2).contiguous().view(
-            batch_size, seq_len, self.d_model
+            batch_size, seq_len, self.num_inputs
         )
         return self.W_o(out)
     
 x = torch.randn(2, 6, 32)
 attn = SlidingWindowAttention(
-    d_model=32,
+    num_inputs=32,
     num_heads=8,
     window_size=1
 )
 out = attn(x)
 print("Output shape:", out.shape)  # [2, 6, 32]
 
-attn = SlidingWindowAttention(
-    d_model=32,
-    num_heads=8,
-    window_size=2
-)
-attn = SlidingWindowAttention(
-    d_model=32,
-    num_heads=8,
-    window_size=2
-)
-out = attn(x)
-print("Output shape:", out.shape)  # [2, 6, 32]
-
-
-# Linear Attention
-class LinearAttention(nn.Module):
-    def __init__(self):
-        super().__init__()
-    def forward(
-        self,
-        Q: torch.Tensor,
-        K: torch.Tensor,
-        V: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Q: (B, S, D_k)
-        K: (B, S, D_k)
-        V: (B, S, D_v)
-        """
-
-        Q_prime = F.elu(Q) + 1
-        K_prime = F.elu(K) + 1
-
-        # (B, D_k, D_v)
-        KV = torch.bmm(
-            K_prime.transpose(1, 2),
-            V
-        )
-
-        # (B, 1, D_k)
-        Z = K_prime.sum(dim=1, keepdim=True)
-
-        # (B, S, D_v)
-        numerator = torch.bmm(Q_prime, KV)
-
-        # (B, S, 1)
-        denominator = torch.bmm(
-            Q_prime,
-            Z.transpose(1, 2)
-        )
-
-        out = numerator / (denominator + 1e-6)
-
-        return out
-
-attn = LinearAttention()
-Q = torch.randn(1, 8, 16)
-K = torch.randn(1, 8, 16)
-V = torch.randn(1, 8, 32)
-print('Shape:', attn(Q,K,V).shape)
-
 
 ## KV-Cached Attention
 class KVCacheAttention(nn.Module):
-    def __init__(self, d_model, num_heads):
+    def __init__(self, num_inputs, num_heads):
         super().__init__()
 
-        assert d_model % num_heads == 0
+        assert num_inputs % num_heads == 0
 
-        self.d_model = d_model
+        self.num_inputs = num_inputs
         self.num_heads = num_heads
-        self.d_k = d_model // num_heads
+        self.d_k = num_inputs// num_heads
 
-        self.W_q = nn.Linear(d_model, d_model)
-        self.W_k = nn.Linear(d_model, d_model)
-        self.W_v = nn.Linear(d_model, d_model)
-        self.W_o = nn.Linear(d_model, d_model)
+        self.W_q = nn.Linear(num_inputs, num_inputs)
+        self.W_k = nn.Linear(num_inputs, num_inputs)
+        self.W_v = nn.Linear(num_inputs, num_inputs)
+        self.W_o = nn.Linear(num_inputs, num_inputs)
 
     def forward(self, x, cache=None):
         """
@@ -425,21 +364,21 @@ class KVCacheAttention(nn.Module):
             batch_size, seq_len, self.num_heads, self.d_k
         ).transpose(1, 2)
 
-        k_new = self.W_k(x).view(
+        k = self.W_k(x).view(
             batch_size, seq_len, self.num_heads, self.d_k
         ).transpose(1, 2)
 
-        v_new = self.W_v(x).view(
+        v = self.W_v(x).view(
             batch_size, seq_len, self.num_heads, self.d_k
         ).transpose(1, 2)
 
         if cache is not None:
             k_cache, v_cache = cache
-            k_all = torch.cat([k_cache, k_new], dim=2)
-            v_all = torch.cat([v_cache, v_new], dim=2)
+            k_all = torch.cat([k_cache, k], dim=2)
+            v_all = torch.cat([v_cache, v], dim=2)
         else:
-            k_all = k_new
-            v_all = v_new
+            k_all = k
+            v_all = v
 
         new_cache = (k_all, v_all)
 
@@ -475,14 +414,14 @@ class KVCacheAttention(nn.Module):
         out = attn.transpose(1, 2).contiguous().view(
             batch_size,
             seq_len,
-            self.d_model
+            self.num_inputs
         )
         out = self.W_o(out)
         return out, new_cache
 
 # Demo: full forward vs incremental decode
 torch.manual_seed(0)
-attn = KVCacheAttention(d_model=64, num_heads=4)
+attn = KVCacheAttention(num_inputs=64, num_heads=4)
 x = torch.randn(1, 6, 64)
 
 full_out, _ = attn(x)
@@ -498,14 +437,14 @@ print('Final cache K shape:', cache[0].shape)
 
 # Flash Attention
 class FlashAttention(nn.Module):
-    def __init__(self, d_model, num_heads):
+    def __init__(self, num_inputs, num_heads):
         super().__init__()
 
-        assert d_model % num_heads == 0
+        assert num_inputs % num_heads == 0
 
-        self.d_model = d_model
+        self.num_inputs = num_inputs
         self.num_heads = num_heads
-        self.d_k = d_model // num_heads
+        self.d_k = num_inputs // num_heads
 
     def forward(self, Q, K, V, block_size):
         batch_size, seq_len, hidden_dim = Q.shape
@@ -521,17 +460,14 @@ class FlashAttention(nn.Module):
                 float("-inf"),
                 device=Q.device
             )
-
             row_sum = torch.zeros(
                 batch_size, bs_q, 1,
                 device=Q.device
             )
-
             acc = torch.zeros(
                 batch_size, bs_q, hidden_dim,
                 device=Q.device
             )
-
             for j in range(0, seq_len, block_size):
                 kj = K[:, j:j + block_size]
                 vj = V[:, j:j + block_size]
@@ -550,7 +486,7 @@ torch.manual_seed(0)
 Q = torch.randn(1, 4, 8)
 K = torch.randn(1, 4, 8)
 V = torch.randn(1, 4, 8)
-flash_attention = FlashAttention(d_model=8, num_heads=1)
+flash_attention = FlashAttention(num_inputs=8, num_heads=1)
 out = flash_attention(Q, K, V, block_size=2)
 print(out.shape)
 scores = torch.bmm(Q, K.transpose(1, 2)) / math.sqrt(8)

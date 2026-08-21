@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import math
 
-# Sinusoidal Positional Encoding
+# Sinusoidal Positional Encoding — the original Transformer-style additive encoding
 def sinusoidal_position_embedding_numpy(seq_len, d_model, theta=10000.0):
     pe = np.zeros((seq_len, d_model))
 
@@ -22,6 +22,8 @@ pe = sinusoidal_position_embedding_numpy(seq_len=5, d_model=8)
 x_with_pos = x + pe[None, :, :]
 print(x_with_pos.shape)
 
+
+# RoPE (Rotary Positional Embedding) — used in many modern LLMs.
 def precompute_freqs_cis_numpy(dim, max_seq_len, theta=10000.0):
     """
     dim: head_dim, must be even
@@ -100,9 +102,7 @@ def apply_rope(q, k):
             ],
             dim=-1,
         )
-
         return rotated.flatten(-2)
-
     return rotate(q), rotate(k)
 
 q = torch.randn(1, 8, 16)
@@ -115,29 +115,29 @@ print('Norm preserved:', torch.allclose(q.norm(dim=-1), qr.norm(dim=-1), atol=1e
 class PositionalEncodingTorch(nn.Module):
     def __init__(self, d_model, max_len=5000, theta=10000.0):
         super().__init__()
-
         pe = torch.zeros(max_len, d_model)
-
         position = torch.arange(0, max_len).unsqueeze(1).float()
         div_term = torch.exp(
-            torch.arange(0, d_model, 2).float() * (-math.log(theta) / d_model)
+            torch.arange(0, d_model, 2).float()
+            * (-math.log(theta) / d_model)
         )
-
         pe[:, 0::2] = torch.sin(position * div_term)
-
-        # handle odd d_model safely
-        pe[:, 1::2] = torch.cos(position * div_term[:pe[:, 1::2].shape[1]])
-
+        # Handle odd d_model safely
+        pe[:, 1::2] = torch.cos(
+            position * div_term[:pe[:, 1::2].shape[1]]
+        )
         pe = pe.unsqueeze(0)  # (1, max_len, d_model)
-
         self.register_buffer("pe", pe)
 
     def forward(self, x):
-        seq_len = x.size(1)  # x: (batch, seq_len, d_model)
+        seq_len = x.size(1)
         return x + self.pe[:, :seq_len, :]
 
 x = torch.randn(2, 5, 8)
-pos_enc = PositionalEncodingTorch(d_model=8, max_len=100)
+pos_enc = PositionalEncodingTorch(
+    d_model=8,
+    max_len=100
+)
 out = pos_enc(x)
 print(out.shape)
 
