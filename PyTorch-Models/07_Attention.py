@@ -330,6 +330,7 @@ print("Output shape:", out.shape)  # [2, 6, 32]
 
 
 ## KV-Cached Attention
+# KV cache = reuse across tokens/decoding steps.
 class KVCacheAttention(nn.Module):
     def __init__(self, num_inputs, num_heads):
         super().__init__()
